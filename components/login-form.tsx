@@ -16,6 +16,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+type RoleOption = "customer" | "staff" | "admin";
+
 export function LoginForm({
   className,
   ...props
@@ -38,8 +40,31 @@ export function LoginForm({
         password,
       });
       if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("Unable to load user session");
+      }
+
+      let role: RoleOption = (user.user_metadata?.role as RoleOption | undefined) ?? "customer";
+
+      if (!role || role === "customer") {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (profile?.role) {
+          role = profile.role as RoleOption;
+        }
+      }
+
+      const destination = role === "admin" || role === "staff" ? "/admin" : "/account";
+      router.push(destination);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
