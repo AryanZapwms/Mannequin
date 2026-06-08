@@ -112,7 +112,7 @@ export default function WishlistPage() {
                 <Heart className="h-4 w-4 fill-red-500 text-red-500" />
               </button>
 
-              <Link href={`/products/${item.product_id}`} className="block">
+              <Link href={`/products/${item.product?.slug ?? item.product_id}`} className="block">
                 <div className="relative aspect-square overflow-hidden bg-gray-100">
                   {item.product?.thumbnail_url ? (
                     <Image
@@ -130,7 +130,7 @@ export default function WishlistPage() {
               </Link>
 
               <div className="p-4">
-                <Link href={`/products/${item.product_id}`}>
+                <Link href={`/products/${item.product?.slug ?? item.product_id}`}>
                   <h3 className="mb-2 line-clamp-2 text-sm font-medium text-gray-900 transition-colors group-hover:text-gray-600">
                     {item.product?.name}
                   </h3>

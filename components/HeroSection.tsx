@@ -185,6 +185,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function HeroSection() {
@@ -216,7 +218,7 @@ export default function HeroSection() {
     setCurrentSlide((prev) => (prev - 1 + carouselImages.length) % carouselImages.length);
   };
 
-  const goToSlide = (index) => {
+  const goToSlide = (index: number) => {
     setCurrentSlide(index);
   };
 
@@ -242,20 +244,20 @@ export default function HeroSection() {
 
             {/* Buttons */}
             <div className="flex flex-wrap justify-center lg:justify-start gap-3 pt-2">
-              <a
+              <Link
                 href="/shop"
                 className="inline-flex items-center gap-2 rounded-lg bg-black px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-semibold text-white shadow transition-transform duration-200 hover:-translate-y-0.5"
               >
                 Shop Now
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
 
-              <a
-                href="/shop?filter=vitamin-e"
+              <Link
+                href="/shop"
                 className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 shadow-sm hover:shadow-md"
               >
                 Buy Vitamin E
-              </a>
+              </Link>
             </div>
 
             {/* Feature bullets */}
@@ -290,10 +292,14 @@ export default function HeroSection() {
                       index === currentSlide ? 'opacity-100' : 'opacity-0'
                     }`}
                   >
-                    <img
+                    <Image
                       src={src}
-                      alt={`Mannequin's Vitamin E range ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      alt={`Mannequin Care — Vitamin E range slide ${index + 1}`}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 50vw"
+                      className="object-cover"
+                      priority={index === 0}
+                      unoptimized
                     />
                   </div>
                 ))}

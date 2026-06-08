@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { deleteProduct } from "./actions";
 import { Edit2, Plus, Trash2 } from "lucide-react";
+import { Pagination } from "@/components/pagination";
+
+const PAGE_SIZE = 20;
 
 async function destroyProduct(formData: FormData) {
   "use server";
@@ -16,28 +19,34 @@ async function destroyProduct(formData: FormData) {
   await deleteProduct(productId);
 }
 
-export default async function ProductsPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
-  const query = typeof searchParams?.q === "string" ? searchParams.q : "";
+export default async function ProductsPage({ searchParams }: { searchParams: any }) {
+  const sp = await searchParams;
+  const query = typeof sp?.q === "string" ? sp.q : "";
+  const currentPage = Math.max(1, parseInt(sp?.page ?? "1", 10) || 1);
+  const offset = (currentPage - 1) * PAGE_SIZE;
+
   const supabase = await createClient();
-  const { data } = await supabase
+
+  let dbQuery = supabase
     .from("products")
     .select(
       `id, name, slug, price, compare_at_price, stock, status, is_featured, thumbnail_url,
       main_category:product_categories!products_main_category_id_fkey(id, name),
-      sub_category:product_categories!products_sub_category_id_fkey(id, name)`
+      sub_category:product_categories!products_sub_category_id_fkey(id, name)`,
+      { count: "exact" }
     )
     .order("created_at", { ascending: false });
 
-  const products = (data ?? []).filter((product) => {
-    if (!query) return true;
-    const normalized = query.toLowerCase();
-    return (
-      product.name.toLowerCase().includes(normalized) ||
-      product.slug.toLowerCase().includes(normalized) ||
-      product.main_category?.name?.toLowerCase().includes(normalized) ||
-      product.sub_category?.name?.toLowerCase().includes(normalized)
-    );
-  });
+  if (query) {
+    dbQuery = dbQuery.or(`name.ilike.%${query}%,slug.ilike.%${query}%`);
+  }
+
+  dbQuery = dbQuery.range(offset, offset + PAGE_SIZE - 1);
+
+  const { data, count } = await dbQuery;
+
+  const products = data ?? [];
+  const total = count ?? 0;
 
   return (
     <section className="space-y-6">
@@ -68,7 +77,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Rec
 
       <Card>
         <CardHeader>
-          <CardTitle>All products</CardTitle>
+          <CardTitle>All products <span className="text-sm font-normal text-muted-foreground">({total})</span></CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left">
@@ -155,6 +164,12 @@ export default async function ProductsPage({ searchParams }: { searchParams: Rec
           </table>
         </CardContent>
       </Card>
+
+      {total > PAGE_SIZE && (
+        <div className="flex justify-center">
+          <Pagination total={total} pageSize={PAGE_SIZE} currentPage={currentPage} />
+        </div>
+      )}
     </section>
   );
 }

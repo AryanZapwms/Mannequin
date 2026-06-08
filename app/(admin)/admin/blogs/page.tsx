@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { deletePost } from "./actions";
 import { Edit2, Plus, Trash2 } from "lucide-react";
+import { Pagination } from "@/components/pagination";
+
+const PAGE_SIZE = 20;
 
 async function removePost(formData: FormData) {
   "use server";
@@ -14,14 +17,20 @@ async function removePost(formData: FormData) {
   await deletePost(postId);
 }
 
-export default async function BlogsPage() {
+export default async function BlogsPage({ searchParams }: { searchParams: any }) {
+  const sp = await searchParams;
+  const currentPage = Math.max(1, parseInt(sp?.page ?? "1", 10) || 1);
+  const offset = (currentPage - 1) * PAGE_SIZE;
+
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, count } = await supabase
     .from("blog_posts")
-    .select("id, title, slug, status, published_at, updated_at")
-    .order("created_at", { ascending: false });
+    .select("id, title, slug, status, published_at, updated_at", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
 
   const posts = data ?? [];
+  const total = count ?? 0;
 
   return (
     <section className="space-y-6">
@@ -39,7 +48,7 @@ export default async function BlogsPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Posts</CardTitle>
+          <CardTitle>Posts <span className="text-sm font-normal text-muted-foreground">({total})</span></CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left">
@@ -94,6 +103,12 @@ export default async function BlogsPage() {
           </table>
         </CardContent>
       </Card>
+
+      {total > PAGE_SIZE && (
+        <div className="flex justify-center">
+          <Pagination total={total} pageSize={PAGE_SIZE} currentPage={currentPage} />
+        </div>
+      )}
     </section>
   );
 }

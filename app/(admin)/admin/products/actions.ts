@@ -73,6 +73,9 @@ export async function createProduct(formData: FormData) {
   }
 
   revalidatePath("/admin/products");
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath(`/products/${slug}`);
   redirect("/admin/products");
 }
 
@@ -110,6 +113,12 @@ export async function updateProduct(productId: string, formData: FormData) {
 
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(name);
 
+  const { data: existing } = await supabase
+    .from("products")
+    .select("slug")
+    .eq("id", productId)
+    .single();
+
   const { error } = await supabase
     .from("products")
     .update({
@@ -134,6 +143,12 @@ export async function updateProduct(productId: string, formData: FormData) {
 
   revalidatePath(`/admin/products/${productId}`);
   revalidatePath("/admin/products");
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath(`/products/${slug}`);
+  if (existing?.slug && existing.slug !== slug) {
+    revalidatePath(`/products/${existing.slug}`);
+  }
   redirect("/admin/products");
 }
 
@@ -147,10 +162,21 @@ export async function deleteProduct(productId: string) {
     redirect("/auth/login?next=/admin/products");
   }
 
+  const { data: existing } = await supabase
+    .from("products")
+    .select("slug")
+    .eq("id", productId)
+    .single();
+
   const { error } = await supabase.from("products").delete().eq("id", productId);
   if (error) {
     throw new Error(error.message);
   }
 
   revalidatePath("/admin/products");
+  revalidatePath("/");
+  revalidatePath("/shop");
+  if (existing?.slug) {
+    revalidatePath(`/products/${existing.slug}`);
+  }
 }

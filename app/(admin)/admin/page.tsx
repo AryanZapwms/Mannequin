@@ -7,20 +7,33 @@ import Link from "next/link";
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
-  const [products, orders, users, blogs, reviews] = await Promise.all([
+  const [products, recentOrdersRes, allRevenueRes, users, blogs, reviews] = await Promise.all([
     supabase.from("products").select("id", { count: "exact", head: true }),
-    supabase.from("orders").select("id, grand_total, status", { count: "exact" }).order("placed_at", { ascending: false }).limit(5),
+    // Recent 5 orders for display
+    supabase
+      .from("orders")
+      .select("id, order_number, grand_total, status, placed_at", { count: "exact" })
+      .order("placed_at", { ascending: false })
+      .limit(5),
+    // All orders — only grand_total needed for revenue sum
+    supabase.from("orders").select("grand_total"),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase.from("blog_posts").select("id", { count: "exact", head: true }),
     supabase.from("product_reviews").select("id", { count: "exact", head: true }),
   ]);
 
-  const [recentOrders, totalRevenue] = (() => {
-    if (!orders.data) return [[], 0];
-    const items = orders.data as Array<{ id: string; grand_total: number; status: string }>;
-    const revenue = items.reduce((sum, item) => sum + (Number(item.grand_total) || 0), 0);
-    return [items, revenue];
-  })();
+  const recentOrders = (recentOrdersRes.data ?? []) as Array<{
+    id: string;
+    order_number: string;
+    grand_total: number;
+    status: string;
+    placed_at: string;
+  }>;
+  const totalOrders = recentOrdersRes.count ?? 0;
+  const totalRevenue = (allRevenueRes.data ?? []).reduce(
+    (sum, row) => sum + (Number(row.grand_total) || 0),
+    0
+  );
 
   return (
     <section className="space-y-8">
@@ -31,7 +44,7 @@ export default async function AdminDashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Products</CardTitle>
@@ -40,6 +53,16 @@ export default async function AdminDashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold">{products.count ?? 0}</div>
             <p className="text-xs text-muted-foreground">Published and draft products</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalOrders}</div>
+            <p className="text-xs text-muted-foreground">₹{totalRevenue.toLocaleString("en-IN")} revenue</p>
           </CardContent>
         </Card>
         <Card>
@@ -81,7 +104,7 @@ export default async function AdminDashboardPage() {
             <p className="text-sm text-muted-foreground">Latest activity across your store</p>
           </div>
           <Badge variant="secondary" className="gap-1">
-            ₹{totalRevenue.toLocaleString()} <ArrowUpRight className="h-3 w-3" />
+            ₹{totalRevenue.toLocaleString("en-IN")} total <ArrowUpRight className="h-3 w-3" />
           </Badge>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -92,10 +115,21 @@ export default async function AdminDashboardPage() {
               {recentOrders.map((order) => (
                 <div key={order.id} className="flex items-center justify-between rounded-lg border px-4 py-3">
                   <div>
-                    <p className="text-sm font-semibold">Order #{order.id.slice(0, 8)}</p>
-                    <p className="text-xs text-muted-foreground">{order.status}</p>
+                    <p className="text-sm font-semibold">
+                      Order {order.order_number ?? `#${order.id.slice(0, 8)}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {order.status} ·{" "}
+                      {new Date(order.placed_at).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
                   </div>
-                  <div className="text-right text-sm font-semibold">₹{Number(order.grand_total).toLocaleString()}</div>
+                  <div className="text-right text-sm font-semibold">
+                    ₹{Number(order.grand_total).toLocaleString("en-IN")}
+                  </div>
                 </div>
               ))}
             </div>

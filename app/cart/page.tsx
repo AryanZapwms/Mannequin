@@ -97,6 +97,8 @@ export default function CartPage() {
     (sum, item) => sum + (item.product?.price || 0) * item.quantity,
     0,
   );
+  const shipping = subtotal >= 500 ? 0 : 60;
+  const tax = Math.round(subtotal * 0.05 * 100) / 100;
 
   if (loading) {
     return (
@@ -145,19 +147,26 @@ export default function CartPage() {
                 <span>₹{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Shipping</span>
-                <span>₹0.00</span>
+                <span className="text-gray-600">
+                  Shipping {subtotal >= 500 ? "(Free)" : ""}
+                </span>
+                <span>{shipping === 0 ? "Free" : `₹${shipping.toFixed(2)}`}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax</span>
-                <span>₹0.00</span>
+                <span className="text-gray-600">Tax (5% GST)</span>
+                <span>₹{tax.toFixed(2)}</span>
               </div>
             </div>
 
             <div className="mb-6 flex justify-between py-4 text-lg font-semibold">
-              <span>Total</span>
-              <span>₹{subtotal.toFixed(2)}</span>
+              <span>Estimated Total</span>
+              <span>₹{(subtotal + shipping + tax).toFixed(2)}</span>
             </div>
+            {subtotal < 500 && (
+              <p className="mb-4 text-xs text-gray-400">
+                Add ₹{(500 - subtotal).toFixed(2)} more for free shipping.
+              </p>
+            )}
 
             <Link
               href="/checkout"

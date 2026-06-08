@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\admin\\\\Desktop\\\\Varun\\\\mannequincare.in\\\\app\\\\blog\\\\[slug]\")",
+      "Bash(Out-Null)"
+    ]
+  }
+}

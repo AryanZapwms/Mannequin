@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { createProduct } from "../actions";
 import Link from "next/link";
+import { ImageUpload } from "@/components/image-upload";
 
 export default async function NewProductPage() {
   const supabase = await createClient();
@@ -100,15 +101,18 @@ export default async function NewProductPage() {
                 </select>
               </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="sku">SKU</Label>
-                <Input id="sku" name="sku" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="thumbnailUrl">Thumbnail URL</Label>
-                <Input id="thumbnailUrl" name="thumbnailUrl" placeholder="https://..." />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="sku">SKU</Label>
+              <Input id="sku" name="sku" />
+            </div>
+            <div className="space-y-2">
+              <Label>Thumbnail</Label>
+              <ImageUpload
+                name="thumbnailUrl"
+                bucket="product-images"
+                folder="thumbnails"
+                label="Upload Thumbnail"
+              />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

@@ -4,16 +4,45 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { updateOrderStatus } from "./actions";
 import Link from "next/link";
+import { Pagination } from "@/components/pagination";
 
-export default async function OrdersPage() {
+const PAGE_SIZE = 10;
+
+export default async function OrdersPage({ searchParams }: { searchParams: any }) {
+  const sp = await searchParams;
+  const currentPage = Math.max(1, parseInt(sp?.page ?? "1", 10) || 1);
+  const offset = (currentPage - 1) * PAGE_SIZE;
+
   const supabase = await createClient();
-  const [{ data: orders }, { data: items }, { data: profiles }] = await Promise.all([
-    supabase
-      .from("orders")
-      .select("id, order_number, status, payment_status, grand_total, subtotal, discount_total, tax_total, shipping_total, placed_at, user_id, shipping_address, billing_address, payment_provider, items:order_items(*)")
-      .order("placed_at", { ascending: false }),
-    supabase.from("order_items").select("order_id, quantity"),
-    supabase.from("profiles").select("id, display_name, phone, email: metadata->email"),
+
+  // Paginated orders
+  const { data: orders, count } = await supabase
+    .from("orders")
+    .select(
+      "id, order_number, status, payment_status, grand_total, subtotal, discount_total, tax_total, shipping_total, placed_at, user_id, shipping_address, billing_address, payment_provider",
+      { count: "exact" }
+    )
+    .order("placed_at", { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+
+  const entries = orders ?? [];
+  const total = count ?? 0;
+  const orderIds = entries.map((o) => o.id);
+
+  // Only fetch items and profiles for the current page's orders
+  const [{ data: items }, { data: profiles }] = await Promise.all([
+    orderIds.length
+      ? supabase.from("order_items").select("order_id, quantity").in("order_id", orderIds)
+      : Promise.resolve({ data: [] }),
+    entries.filter((o) => o.user_id).length
+      ? supabase
+          .from("profiles")
+          .select("id, display_name, phone, email: metadata->email")
+          .in(
+            "id",
+            entries.filter((o) => o.user_id).map((o) => o.user_id!)
+          )
+      : Promise.resolve({ data: [] }),
   ]);
 
   const profileMap = new Map<string, any>();
@@ -27,8 +56,6 @@ export default async function OrdersPage() {
     itemCountByOrder.set(item.order_id, current + (item.quantity ?? 0));
   });
 
-  const entries = orders ?? [];
-
   return (
     <section className="space-y-6">
       <div>
@@ -37,7 +64,9 @@ export default async function OrdersPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Recent orders</CardTitle>
+          <CardTitle>
+            Orders <span className="text-sm font-normal text-muted-foreground">({total})</span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {entries.length === 0 ? (
@@ -151,6 +180,12 @@ export default async function OrdersPage() {
           )}
         </CardContent>
       </Card>
+
+      {total > PAGE_SIZE && (
+        <div className="flex justify-center">
+          <Pagination total={total} pageSize={PAGE_SIZE} currentPage={currentPage} />
+        </div>
+      )}
     </section>
   );
 }

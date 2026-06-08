@@ -206,10 +206,20 @@
 
 
 
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { ShopProductCard } from "@/components/shop-product-card";
+import { ShopSortSelect } from "@/components/shop-sort-select";
+import { Pagination } from "@/components/pagination";
+
+const PAGE_SIZE = 12;
+
+export const metadata: Metadata = {
+  title: "Shop | Mannequin Care",
+  description: "Browse our full range of natural skincare and haircare products.",
+};
 
 export default async function ShopPage({
   searchParams,
@@ -218,6 +228,10 @@ export default async function ShopPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
+
+  // Pagination
+  const currentPage = Math.max(1, parseInt(params?.page ?? "1", 10) || 1);
+  const offset = (currentPage - 1) * PAGE_SIZE;
 
   // Fetch categories
   const { data: categories } = await supabase
@@ -229,7 +243,8 @@ export default async function ShopPage({
   let query = supabase
     .from("products")
     .select(
-      "*, main_category:product_categories!main_category_id(name), sub_category:product_categories!sub_category_id(name)"
+      "*, main_category:product_categories!main_category_id(name), sub_category:product_categories!sub_category_id(name)",
+      { count: "exact" }
     )
     .eq("status", "active");
 
@@ -252,7 +267,20 @@ export default async function ShopPage({
     query = query.ilike("name", `%${params.search}%`);
   }
 
-  const { data: products } = await query.order("created_at", { ascending: false });
+  // Sorting
+  const sort = typeof params?.sort === "string" ? params.sort : "";
+  if (sort === "price_asc") {
+    query = query.order("price", { ascending: true });
+  } else if (sort === "price_desc") {
+    query = query.order("price", { ascending: false });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  // Apply pagination range
+  query = query.range(offset, offset + PAGE_SIZE - 1);
+
+  const { data: products, count: totalProducts } = await query;
 
   const allCategories = categories ?? [];
   const mainCategories = allCategories.filter((c) => c.parent_id === null);
@@ -267,6 +295,7 @@ export default async function ShopPage({
   );
 
   const allProducts = products ?? [];
+  const total = totalProducts ?? 0;
 
   // Check if any filters are active
   const hasActiveFilters = params?.category || params?.minPrice || params?.maxPrice || params?.search;
@@ -343,6 +372,7 @@ export default async function ShopPage({
               <form action="/shop" method="get" className="space-y-6">
                 {params?.category && <input type="hidden" name="category" value={params.category} />}
                 {params?.search && <input type="hidden" name="search" value={params.search} />}
+                {sort && <input type="hidden" name="sort" value={sort} />}
 
                 <div className="space-y-3">
                   <label className="text-xs font-light text-black">
@@ -439,14 +469,9 @@ export default async function ShopPage({
             {/* Header */}
             <div className="mb-8 flex items-center justify-between border-b border-gray-100 pb-6">
               <p className="text-sm text-gray-500 font-light">
-                {allProducts.length} {allProducts.length === 1 ? 'product' : 'products'} found
+                {total} {total === 1 ? "product" : "products"} found
               </p>
-              <select className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-light focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all cursor-pointer">
-                <option>Default sorting</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
-                <option>Latest</option>
-              </select>
+              <ShopSortSelect currentSort={sort} />
             </div>
 
             {/* Products */}
@@ -469,11 +494,24 @@ export default async function ShopPage({
                 </div>
               </div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {allProducts.map((product) => (
-                  <ShopProductCard key={product.id} product={product} />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {allProducts.map((product) => (
+                    <ShopProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {total > PAGE_SIZE && (
+                  <div className="mt-10 flex justify-center">
+                    <Pagination
+                      total={total}
+                      pageSize={PAGE_SIZE}
+                      currentPage={currentPage}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </main>
         </div>

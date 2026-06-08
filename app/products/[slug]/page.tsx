@@ -3,7 +3,10 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, ShoppingCart, Minus, Plus, Share2, Star } from "lucide-react";
+import { Star } from "lucide-react";
+import { ProductActions } from "@/components/product-actions";
+import { ProductGallery } from "@/components/product-gallery";
+import type { Metadata } from "next";
 
 type ReviewRecord = {
   id: string;
@@ -58,14 +61,41 @@ type ListedProduct = {
   thumbnail_url: string | null;
 };
 
-export default async function ProductDetailPage({ 
-  params 
-}: { 
-  params: Promise<{ slug: string }> 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("products")
+    .select("name, description, thumbnail_url")
+    .eq("slug", slug)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!data) return { title: "Product Not Found" };
+
+  return {
+    title: `${data.name} | Mannequin Care`,
+    description: data.description ?? `Buy ${data.name} at Mannequin Care.`,
+    openGraph: {
+      title: data.name,
+      description: data.description ?? `Buy ${data.name} at Mannequin Care.`,
+      images: data.thumbnail_url ? [data.thumbnail_url] : [],
+    },
+  };
+}
+
+export default async function ProductDetailPage({
+  params
+}: {
+  params: Promise<{ slug: string }>
 }) {
   // Await params in Next.js 15+
   const { slug } = await params;
-  
+
   const supabase = await createClient();
 
   const {
@@ -90,6 +120,39 @@ export default async function ProductDetailPage({
   }
 
   const product = productData as ProductRecord;
+
+  // Fetch product gallery images
+  const { data: galleryData } = await supabase
+    .from("product_media")
+    .select("id, url, alt_text, sort_order")
+    .eq("product_id", product.id)
+    .order("sort_order", { ascending: true });
+
+  const galleryImages = galleryData ?? [];
+
+  // Combine thumbnail + gallery into one unified image list
+  const allImages: { url: string; alt: string }[] = [
+    ...(product.thumbnail_url
+      ? [{ url: product.thumbnail_url, alt: product.name }]
+      : []),
+    ...galleryImages.map((g) => ({ url: g.url, alt: g.alt_text || product.name })),
+  ];
+
+  // Check if product is in the logged-in user's wishlist
+  let initialInWishlist = false;
+  let initialWishlistItemId: string | null = null;
+  if (authUser) {
+    const { data: wishlistRow } = await supabase
+      .from("wishlist_items")
+      .select("id")
+      .eq("user_id", authUser.id)
+      .eq("product_id", product.id)
+      .maybeSingle();
+    if (wishlistRow) {
+      initialInWishlist = true;
+      initialWishlistItemId = wishlistRow.id;
+    }
+  }
 
   const reviewsResponse = await supabase
     .from("product_reviews")
@@ -236,18 +299,7 @@ export default async function ProductDetailPage({
 
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="space-y-4">
-          <div className="relative aspect-square overflow-hidden rounded-lg bg-gray-100">
-            {product.thumbnail_url ? (
-              <Image src={product.thumbnail_url} alt={product.name} fill className="object-cover" priority />
-            ) : (
-              <div className="flex h-full items-center justify-center text-gray-400">No Image Available</div>
-            )}
-            {discount > 0 ? (
-              <div className="absolute left-4 top-4 rounded-full bg-red-500 px-3 py-1 text-sm font-semibold text-white">
-                -{discount}%
-              </div>
-            ) : null}
-          </div>
+          <ProductGallery images={allImages} discount={discount} />
         </div>
 
         <div className="space-y-6">
@@ -303,42 +355,17 @@ export default async function ProductDetailPage({
             </div>
           ) : null}
 
-          <div className="space-y-4 border-t border-gray-200 pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center rounded-md border border-gray-300">
-                <button className="px-4 py-2 hover:bg-gray-100">
-                  <Minus className="h-4 w-4" />
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  max={product.stock || 1}
-                  defaultValue="1"
-                  className="w-16 border-x border-gray-300 py-2 text-center focus:outline-none"
-                />
-                <button className="px-4 py-2 hover:bg-gray-100">
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              <button
-                disabled={!product.stock || product.stock === 0}
-                className="flex flex-1 items-center justify-center gap-2 rounded-md bg-black px-6 py-3 font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
-              >
-                <ShoppingCart className="h-5 w-5" />
-                Add to Cart
-              </button>
-            </div>
-
-            <div className="flex gap-3">
-              <button className="flex flex-1 items-center justify-center gap-2 rounded-md border-2 border-gray-300 px-6 py-3 font-medium text-gray-900 transition-colors hover:bg-gray-50">
-                <Heart className="h-5 w-5" />
-                Add to Wishlist
-              </button>
-              <button className="flex items-center justify-center gap-2 rounded-md border-2 border-gray-300 px-6 py-3 font-medium text-gray-900 transition-colors hover:bg-gray-50">
-                <Share2 className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
+          <ProductActions
+            productId={product.id}
+            productSlug={product.slug}
+            productName={product.name}
+            productPrice={product.price}
+            productThumbnailUrl={product.thumbnail_url}
+            maxStock={product.stock ?? 0}
+            isOutOfStock={!product.stock || product.stock === 0}
+            initialInWishlist={initialInWishlist}
+            initialWishlistItemId={initialWishlistItemId}
+          />
 
           <div className="space-y-3 rounded-lg bg-gray-50 p-4 text-sm">
             <div className="flex items-center gap-2">

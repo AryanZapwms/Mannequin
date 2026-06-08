@@ -31,7 +31,7 @@ export default function RootLayout({
       <body className={`${geistSans.className} antialiased`}>
         <ToastProvider />
         <Header />
-        <main className=" min-h-screen bg-background">{children}</main>
+        <main className="min-h-screen bg-background pt-20 md:pt-24">{children}</main>
         <Footer/>
       </body>
     </html>

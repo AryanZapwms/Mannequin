@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getUserOrders } from "@/lib/services/order";
 import type { Order } from "@/lib/services/order";
+
+export const metadata: Metadata = {
+  title: "My Orders — Mannequin Care",
+  description: "View your order history and track the status of current orders.",
+  robots: { index: false },
+};
 
 export default async function OrdersPage() {
   const supabase = await createClient();

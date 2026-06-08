@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { updateProduct } from "../actions";
+import { ImageUpload } from "@/components/image-upload";
 
 export default async function EditProductPage({ 
   params 
@@ -132,15 +133,19 @@ export default async function EditProductPage({
                 </select>
               </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="sku">SKU</Label>
-                <Input id="sku" name="sku" defaultValue={product.sku ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="thumbnailUrl">Thumbnail URL</Label>
-                <Input id="thumbnailUrl" name="thumbnailUrl" defaultValue={product.thumbnail_url ?? ""} />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="sku">SKU</Label>
+              <Input id="sku" name="sku" defaultValue={product.sku ?? ""} />
+            </div>
+            <div className="space-y-2">
+              <Label>Thumbnail</Label>
+              <ImageUpload
+                name="thumbnailUrl"
+                defaultValue={product.thumbnail_url ?? ""}
+                bucket="product-images"
+                folder="thumbnails"
+                label="Upload Thumbnail"
+              />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { createPost } from "../actions";
+import { MarkdownEditor } from "@/components/markdown-editor";
+import { ImageUpload } from "@/components/image-upload";
 
 export default async function NewBlogPostPage() {
   return (
@@ -41,17 +43,21 @@ export default async function NewBlogPostPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="content">Content</Label>
-              <textarea
-                id="content"
+              <Label>Content (Markdown)</Label>
+              <MarkdownEditor
                 name="content"
-                rows={10}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Write your post in Markdown…"
+                rows={18}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="coverImageUrl">Cover image URL</Label>
-              <Input id="coverImageUrl" name="coverImageUrl" placeholder="https://..." />
+              <Label>Cover image</Label>
+              <ImageUpload
+                name="coverImageUrl"
+                bucket="blog-images"
+                folder="covers"
+                label="Upload Cover"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>

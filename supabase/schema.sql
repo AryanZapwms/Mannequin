@@ -113,8 +113,7 @@ create table if not exists public.user_addresses (
   country text not null default 'India',
   is_default boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now()),
-  unique (user_id, type, is_default) where is_default = true
+  updated_at timestamptz not null default timezone('utc', now())
 );
 
 create trigger update_user_addresses_updated_at
@@ -413,6 +412,7 @@ create policy "Customers manage wishlist" on public.wishlist_items
 -- Useful indexes
 create index if not exists idx_user_addresses_user on public.user_addresses(user_id);
 create index if not exists idx_user_addresses_type on public.user_addresses(user_id, type);
+create unique index if not exists idx_user_addresses_default on public.user_addresses(user_id, type) where is_default = true;
 create index if not exists idx_product_categories_parent on public.product_categories(parent_id);
 create index if not exists idx_products_main_category on public.products(main_category_id);
 create index if not exists idx_products_sub_category on public.products(sub_category_id);
@@ -420,3 +420,31 @@ create index if not exists idx_products_status on public.products(status);
 create index if not exists idx_orders_user on public.orders(user_id);
 create index if not exists idx_blog_posts_status on public.blog_posts(status);
 create index if not exists idx_reviews_product on public.product_reviews(product_id);
+
+-- Stock decrement helper (called server-side after order creation)
+create or replace function public.decrement_stock(p_product_id uuid, p_quantity integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.products
+    set stock = greatest(0, stock - p_quantity)
+  where id = p_product_id;
+end;
+$$;
+
+-- RLS: allow authenticated customers to insert their own orders
+create policy "Customers can place orders" on public.orders
+  for insert with check (auth.uid() = user_id or user_id is null);
+
+-- RLS: allow authenticated customers to insert their own order items
+create policy "Customers can insert order items" on public.order_items
+  for insert with check (
+    exists (
+      select 1 from public.orders o
+      where o.id = order_items.order_id
+        and (o.user_id = auth.uid() or o.user_id is null)
+    )
+  );

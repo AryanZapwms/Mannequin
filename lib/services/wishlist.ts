@@ -8,6 +8,7 @@ export interface WishlistItem {
   product?: {
     id: string;
     name: string;
+    slug: string;
     price: number;
     thumbnail_url?: string;
     stock: number;
@@ -26,7 +27,7 @@ export async function getWishlistItems(
       user_id,
       product_id,
       created_at,
-      product:product_id(id, name, price, thumbnail_url, stock)
+      product:product_id(id, name, slug, price, thumbnail_url, stock)
     `,
     )
     .eq("user_id", userId)

@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { getCartItems, clearCart } from "@/lib/services/cart";
-import { createOrder, generateOrderNumber } from "@/lib/services/order";
-import { getDefaultAddress } from "@/lib/services/address";
-import { sendOrderConfirmationEmail, sendAdminOrderNotification } from "@/lib/services/email";
+import { getCartItems } from "@/lib/services/cart";
+import { getGuestCart, clearGuestCart } from "@/lib/services/guest-cart";
 import { createRazorpayOrder, verifyPayment } from "@/lib/services/razorpay";
-import { CheckoutForm, type CheckoutData } from "@/components/checkout-form";
 import { BulkOrderModal } from "@/components/bulk-order-modal";
 import type { CartItem } from "@/lib/services/cart";
-import type { UserAddress } from "@/lib/services/address";
-import Image from "next/image";
+import type { GuestCartItem } from "@/lib/services/guest-cart";
+import { ShoppingBag } from "lucide-react";
+import Link from "next/link";
 
 declare global {
   interface Window {
@@ -20,99 +20,206 @@ declare global {
   }
 }
 
+const TAX_RATE = 0.05;
+
+type AddressForm = {
+  full_name: string;
+  email: string;
+  phone: string;
+  street_address: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+};
+
+function AddressInput({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  required = true,
+  placeholder,
+}: {
+  label: string;
+  name: keyof AddressForm;
+  value: string;
+  onChange: (name: keyof AddressForm, value: string) => void;
+  type?: string;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={name} className="text-sm font-medium text-gray-700">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        id={name}
+        name={name}
+        type={type}
+        required={required}
+        value={value}
+        onChange={(e) => onChange(name, e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-black focus:bg-white focus:outline-none focus:ring-1 focus:ring-black transition-all"
+      />
+    </div>
+  );
+}
+
 export default function CheckoutPage() {
   const supabase = createClient();
   const router = useRouter();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+
+  const [cartItems, setCartItems] = useState<(CartItem | GuestCartItem)[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [userPhone, setUserPhone] = useState<string | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cod">("razorpay");
+  const [couponCode, setCouponCode] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [couponApplied, setCouponApplied] = useState(false);
+  const [couponError, setCouponError] = useState("");
+
+  const [address, setAddress] = useState<AddressForm>({
+    full_name: "",
+    email: "",
+    phone: "",
+    street_address: "",
+    city: "",
+    state: "",
+    postal_code: "",
+    country: "India",
+  });
 
   useEffect(() => {
     const loadCheckout = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        redirect("/auth/login?next=/checkout");
-      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      setUserId(user.id);
-      setUserEmail(user.email || null);
-      setUserPhone(user.phone || null);
+      if (user) {
+        setUserId(user.id);
+        setUserEmail(user.email || null);
+        setUserPhone(user.phone || null);
+        setIsGuest(false);
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user.id)
-        .single();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name, phone")
+          .eq("id", user.id)
+          .single();
 
-      if (profile) {
-        setUserName(profile.display_name);
-      }
+        const name = profile?.display_name || user.user_metadata?.full_name || "";
+        setUserName(name);
+        setAddress((prev) => ({
+          ...prev,
+          full_name: name,
+          email: user.email || "",
+          phone: profile?.phone || user.phone || "",
+        }));
 
-      try {
-        const items = await getCartItems(supabase, user.id);
-        setCartItems(items);
-
-        if (items.length > 5) {
-          setShowBulkModal(true);
+        try {
+          const items = await getCartItems(supabase, user.id);
+          setCartItems(items);
+          if (items.length > 5) setShowBulkModal(true);
+        } catch (error) {
+          console.error("Error loading cart:", error);
         }
-      } catch (error) {
-        console.error("Error loading cart:", error);
-      } finally {
-        setLoading(false);
+      } else {
+        setIsGuest(true);
+        const guestItems = getGuestCart();
+        setCartItems(guestItems);
+        if (guestItems.length > 5) setShowBulkModal(true);
       }
+
+      setLoading(false);
     };
 
     void loadCheckout();
   }, [supabase]);
 
+  const updateAddress = (name: keyof AddressForm, value: string) => {
+    setAddress((prev) => ({ ...prev, [name]: value }));
+  };
+
   const subtotal = cartItems.reduce(
     (sum, item) => sum + (item.product?.price || 0) * item.quantity,
-    0,
+    0
   );
+  const shipping = subtotal >= 500 ? 0 : 60;
+  const tax = Math.round((subtotal - discountAmount) * TAX_RATE * 100) / 100;
+  const total = subtotal - discountAmount + shipping + tax;
 
-  const shipping = 0;
-  const tax = Math.round(subtotal * 0.05 * 100) / 100;
-  const total = subtotal + shipping + tax;
+  const handleApplyCoupon = async () => {
+    setCouponError("");
+    if (!couponCode.trim()) return;
 
-  const handleCheckoutSubmit = async (data: CheckoutData) => {
-    if (!userId || !userEmail) return;
+    // Check coupon against site_settings
+    const { data } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", `COUPON_${couponCode.toUpperCase().trim()}`)
+      .maybeSingle();
+
+    if (!data) {
+      setCouponError("Invalid or expired coupon code.");
+      setDiscountAmount(0);
+      setCouponApplied(false);
+      return;
+    }
+
+    const couponData = data.value as { type: "percent" | "fixed"; value: number };
+    let discount = 0;
+    if (couponData.type === "percent") {
+      discount = Math.round(subtotal * (couponData.value / 100) * 100) / 100;
+    } else {
+      discount = Math.min(couponData.value, subtotal);
+    }
+
+    setDiscountAmount(discount);
+    setCouponApplied(true);
+    toast.success(`Coupon applied! You save ₹${discount.toFixed(2)}`);
+  };
+
+  const removeCoupon = () => {
+    setCouponCode("");
+    setDiscountAmount(0);
+    setCouponApplied(false);
+    setCouponError("");
+  };
+
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!address.full_name || !address.phone || !address.street_address || !address.city || !address.state || !address.postal_code) {
+      toast.error("Please fill in all required address fields.");
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error("Your cart is empty.");
+      return;
+    }
 
     setProcessing(true);
 
     try {
-      let shippingAddress: UserAddress | null = null;
+      let razorpayPaymentId: string | undefined;
 
-      if (data.shippingAddressId !== "new") {
-        const { data: address } = await supabase
-          .from("user_addresses")
-          .select("*")
-          .eq("id", data.shippingAddressId)
-          .single();
-        shippingAddress = address;
-      }
-
-      const orderNumber = generateOrderNumber();
-
-      let paymentStatus: "pending" | "authorized" | "paid" | "failed" | "refunded" = "pending";
-      let razorpayOrderId: string | null = null;
-
-      if (data.paymentMethod === "razorpay") {
+      if (paymentMethod === "razorpay") {
         const razorpayOrder = await createRazorpayOrder({
           amount: total,
-          receipt: orderNumber,
-          notes: {
-            userId,
-            orderNumber,
-          },
+          receipt: `guest-${Date.now()}`,
+          notes: { email: address.email || userEmail || "" },
         });
-
-        razorpayOrderId = razorpayOrder.id;
 
         await new Promise<void>((resolve, reject) => {
           const options = {
@@ -120,145 +227,98 @@ export default function CheckoutPage() {
             amount: Math.round(total * 100),
             currency: "INR",
             name: "Mannequin Care",
-            description: `Order ${orderNumber}`,
-            order_id: razorpayOrderId,
+            description: "Order Payment",
+            order_id: razorpayOrder.id,
             handler: async (response: any) => {
-              try {
-                const isValid = await verifyPayment(
-                  razorpayOrderId!,
-                  response.razorpay_payment_id,
-                  response.razorpay_signature,
-                );
-
-                if (isValid) {
-                  paymentStatus = "paid";
-                  resolve();
-                } else {
-                  reject(new Error("Payment verification failed"));
-                }
-              } catch (error) {
-                reject(error);
+              const isValid = await verifyPayment(
+                razorpayOrder.id,
+                response.razorpay_payment_id,
+                response.razorpay_signature
+              );
+              if (isValid) {
+                razorpayPaymentId = response.razorpay_payment_id;
+                resolve();
+              } else {
+                reject(new Error("Payment verification failed"));
               }
             },
             prefill: {
-              name: userName || "Customer",
-              email: userEmail,
-              contact: userPhone,
+              name: address.full_name,
+              email: address.email || userEmail || "",
+              contact: address.phone,
             },
           };
 
           const razorpay = new window.Razorpay(options);
-          razorpay.on("payment.failed", () => {
-            paymentStatus = "failed";
-            reject(new Error("Payment failed"));
-          });
+          razorpay.on("payment.failed", () => reject(new Error("Payment failed")));
           razorpay.open();
         });
-      } else {
-        paymentStatus = "pending";
       }
 
-      const order = await createOrder(
-        supabase,
-        {
-          order_number: orderNumber,
-          user_id: userId,
-          status: "pending",
-          payment_status: paymentStatus,
+      // Create order via server-side API (bypasses RLS, supports guests)
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cartItems,
+          shippingAddress: address,
+          guestEmail: isGuest ? address.email : undefined,
+          paymentMethod,
+          razorpayPaymentId,
           subtotal,
-          discount_total: 0,
-          tax_total: tax,
-          shipping_total: shipping,
-          grand_total: total,
-          currency: "INR",
-          payment_provider: data.paymentMethod,
-          billing_address: shippingAddress,
-          shipping_address: shippingAddress,
-          notes: data.paymentMethod === "cod" ? "Cash on Delivery" : undefined,
-        },
-        cartItems.map((item) => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.product?.price || 0,
-          line_total: (item.product?.price || 0) * item.quantity,
-          product_snapshot: {
-            name: item.product?.name,
-            price: item.product?.price,
-            quantity: item.quantity,
-          },
-        })),
+          tax,
+          shipping,
+          total,
+          discountTotal: discountAmount,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Order creation failed");
+      }
+
+      const { orderId } = await response.json();
+
+      // Clear guest cart from localStorage
+      if (isGuest) {
+        clearGuestCart();
+        window.dispatchEvent(new Event("storage"));
+      }
+
+      router.push(`/order-confirmation/${orderId}`);
+    } catch (err) {
+      console.error("Checkout error:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Checkout failed. Please try again."
       );
-
-      await sendOrderConfirmationEmail(userEmail, {
-        orderNumber,
-        customerName: userName || "Customer",
-        items: cartItems.map((item) => ({
-          name: item.product?.name || "Product",
-          quantity: item.quantity,
-          price: item.product?.price || 0,
-        })),
-        subtotal,
-        tax,
-        shipping,
-        total,
-        shippingAddress: {
-          fullName: shippingAddress?.full_name || "",
-          streetAddress: shippingAddress?.street_address || "",
-          city: shippingAddress?.city || "",
-          state: shippingAddress?.state || "",
-          postalCode: shippingAddress?.postal_code || "",
-          country: shippingAddress?.country || "India",
-          phone: shippingAddress?.phone || "",
-        },
-        estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
-          .toLocaleDateString(),
-      });
-
-      await sendAdminOrderNotification({
-        orderNumber,
-        customerName: userName || "Customer",
-        customerEmail: userEmail,
-        customerPhone: userPhone || "N/A",
-        items: cartItems.map((item) => ({
-          name: item.product?.name || "Product",
-          quantity: item.quantity,
-          price: item.product?.price || 0,
-        })),
-        total,
-        shippingAddress: {
-          fullName: shippingAddress?.full_name || "",
-          streetAddress: shippingAddress?.street_address || "",
-          city: shippingAddress?.city || "",
-          state: shippingAddress?.state || "",
-          postalCode: shippingAddress?.postal_code || "",
-          country: shippingAddress?.country || "India",
-          phone: shippingAddress?.phone || "",
-        },
-        paymentMethod: data.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery",
-      });
-
-      await clearCart(supabase, userId);
-
-      router.push(`/order-confirmation/${order.id}`);
-    } catch (error) {
-      console.error("Checkout error:", error);
-      alert(error instanceof Error ? error.message : "Checkout failed. Please try again.");
       setProcessing(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading checkout...</p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-pulse space-y-3 text-center">
+          <div className="h-8 w-48 rounded bg-gray-200 mx-auto" />
+          <div className="h-4 w-32 rounded bg-gray-200 mx-auto" />
+        </div>
       </div>
     );
   }
 
-  if (cartItems.length === 0 && !loading) {
+  if (cartItems.length === 0) {
     return (
-      <div className="container mx-auto max-w-6xl px-4 py-8">
-        <p>Cart is empty. Redirecting to shop...</p>
+      <div className="container mx-auto max-w-2xl px-4 py-16 text-center">
+        <ShoppingBag className="mx-auto mb-4 h-16 w-16 text-gray-300" />
+        <h1 className="mb-2 text-2xl font-semibold text-gray-900">Your cart is empty</h1>
+        <p className="mb-6 text-gray-500">Add some products before checking out.</p>
+        <Link
+          href="/shop"
+          className="inline-block rounded-xl bg-black px-6 py-3 text-sm font-semibold text-white hover:bg-gray-800"
+        >
+          Browse Products
+        </Link>
       </div>
     );
   }
@@ -266,76 +326,275 @@ export default function CheckoutPage() {
   return (
     <>
       <script src="https://checkout.razorpay.com/v1/checkout.js" async />
-      
-      <BulkOrderModal
-        isOpen={showBulkModal}
-        onClose={() => setShowBulkModal(false)}
-      />
 
-      <div className="container mx-auto max-w-6xl px-4 py-8">
-        <h1 className="mb-8 text-3xl font-semibold">Checkout</h1>
+      <BulkOrderModal isOpen={showBulkModal} onClose={() => setShowBulkModal(false)} />
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
-          <div>
-            <CheckoutForm
-              cartItems={cartItems}
-              total={total}
-              onSubmit={handleCheckoutSubmit}
-              loading={processing}
-            />
-          </div>
+      <div className="container mx-auto max-w-6xl px-4 py-10">
+        <h1 className="mb-8 text-3xl font-semibold text-gray-900">Checkout</h1>
 
-          <div className="h-fit rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-lg font-semibold">Order Summary</h2>
+        <form onSubmit={handleCheckout}>
+          <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
+            {/* Left — address + payment */}
+            <div className="space-y-8">
+              {/* Guest login prompt */}
+              {isGuest && (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                  <span className="font-semibold">Have an account?</span>{" "}
+                  <Link
+                    href="/auth/login?next=/checkout"
+                    className="underline font-medium"
+                  >
+                    Sign in
+                  </Link>{" "}
+                  to use saved addresses and track your orders.
+                </div>
+              )}
 
-            <div className="mb-6 space-y-3 border-b pb-4">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex gap-2">
-                  <div className="relative h-12 w-12 overflow-hidden rounded bg-gray-100">
-                    {item.product?.thumbnail_url && (
-                      <Image
-                        src={item.product.thumbnail_url}
-                        alt={item.product.name}
-                        fill
-                        className="object-cover"
+              {/* Address */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-5 text-lg font-semibold text-gray-900">
+                  Shipping Address
+                </h2>
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <AddressInput
+                      label="Full Name"
+                      name="full_name"
+                      value={address.full_name}
+                      onChange={updateAddress}
+                      placeholder="Priya Sharma"
+                    />
+                    <AddressInput
+                      label="Phone"
+                      name="phone"
+                      value={address.phone}
+                      onChange={updateAddress}
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                    />
+                  </div>
+                  <AddressInput
+                    label="Email"
+                    name="email"
+                    value={address.email}
+                    onChange={updateAddress}
+                    type="email"
+                    required={isGuest}
+                    placeholder="your@email.com"
+                  />
+                  <AddressInput
+                    label="Street Address"
+                    name="street_address"
+                    value={address.street_address}
+                    onChange={updateAddress}
+                    placeholder="Building, street, locality"
+                  />
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <AddressInput
+                      label="City"
+                      name="city"
+                      value={address.city}
+                      onChange={updateAddress}
+                      placeholder="Mumbai"
+                    />
+                    <AddressInput
+                      label="State"
+                      name="state"
+                      value={address.state}
+                      onChange={updateAddress}
+                      placeholder="Maharashtra"
+                    />
+                    <AddressInput
+                      label="Postal Code"
+                      name="postal_code"
+                      value={address.postal_code}
+                      onChange={updateAddress}
+                      placeholder="400053"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-5 text-lg font-semibold text-gray-900">
+                  Payment Method
+                </h2>
+                <div className="space-y-3">
+                  {[
+                    {
+                      value: "razorpay" as const,
+                      label: "Pay Online",
+                      sublabel: "Credit / Debit Card, UPI, Net Banking via Razorpay",
+                    },
+                    {
+                      value: "cod" as const,
+                      label: "Cash on Delivery",
+                      sublabel: "Pay when your order arrives",
+                    },
+                  ].map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex cursor-pointer items-start gap-4 rounded-xl border-2 p-4 transition-all ${
+                        paymentMethod === opt.value
+                          ? "border-black bg-gray-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment"
+                        value={opt.value}
+                        checked={paymentMethod === opt.value}
+                        onChange={() => setPaymentMethod(opt.value)}
+                        className="mt-0.5"
                       />
-                    )}
-                  </div>
-                  <div className="flex-1 text-sm">
-                    <p className="font-medium line-clamp-1">
-                      {item.product?.name}
-                    </p>
-                    <p className="text-gray-600">x{item.quantity}</p>
-                  </div>
-                  <p className="font-medium">
-                    ₹{((item.product?.price || 0) * item.quantity).toFixed(2)}
-                  </p>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{opt.label}</p>
+                        <p className="text-xs text-gray-500">{opt.sublabel}</p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
 
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal</span>
-                <span>₹{subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Shipping</span>
-                <span>₹{shipping.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Tax</span>
-                <span>₹{tax.toFixed(2)}</span>
-              </div>
-              <div className="border-t pt-2 font-semibold">
-                <div className="flex justify-between">
-                  <span>Total</span>
-                  <span>₹{total.toFixed(2)}</span>
+            {/* Right — order summary */}
+            <div className="h-fit space-y-4">
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-5 text-lg font-semibold text-gray-900">
+                  Order Summary
+                </h2>
+
+                {/* Items */}
+                <div className="mb-4 space-y-3 border-b pb-4">
+                  {cartItems.map((item, i) => (
+                    <div key={(item as any).id ?? i} className="flex items-center gap-3">
+                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                        {item.product?.thumbnail_url && (
+                          <Image
+                            src={item.product.thumbnail_url}
+                            alt={item.product?.name || "Product"}
+                            fill
+                            className="object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 text-sm">
+                        <p className="font-medium line-clamp-1">
+                          {item.product?.name ?? "Product"}
+                        </p>
+                        <p className="text-gray-500">×{item.quantity}</p>
+                      </div>
+                      <p className="text-sm font-semibold">
+                        ₹{((item.product?.price || 0) * item.quantity).toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
+
+                {/* Coupon */}
+                <div className="mb-4 border-b pb-4">
+                  {couponApplied ? (
+                    <div className="flex items-center justify-between rounded-xl bg-green-50 px-4 py-2 text-sm">
+                      <span className="font-medium text-green-800">
+                        🎉 "{couponCode.toUpperCase()}" applied — −₹{discountAmount.toFixed(2)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={removeCoupon}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        Coupon Code
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value)}
+                          placeholder="Enter code"
+                          className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyCoupon}
+                          className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                      {couponError && (
+                        <p className="text-xs text-red-500">{couponError}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Totals */}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Subtotal</span>
+                    <span>₹{subtotal.toFixed(2)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount</span>
+                      <span>−₹{discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">
+                      Shipping {subtotal >= 500 ? "(Free)" : ""}
+                    </span>
+                    <span>{shipping === 0 ? "Free" : `₹${shipping.toFixed(2)}`}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Tax (5%)</span>
+                    <span>₹{tax.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between font-semibold text-base">
+                    <span>Total</span>
+                    <span>₹{total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {subtotal < 500 && (
+                  <p className="mt-3 text-xs text-gray-400">
+                    Add ₹{(500 - subtotal).toFixed(2)} more for free shipping.
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={processing}
+                  className="mt-6 w-full rounded-xl bg-black px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {processing
+                    ? "Processing…"
+                    : `Place Order — ₹${total.toFixed(2)}`}
+                </button>
+
+                <p className="mt-3 text-center text-xs text-gray-400">
+                  By placing your order you agree to our{" "}
+                  <Link href="/terms" className="underline">
+                    Terms
+                  </Link>{" "}
+                  and{" "}
+                  <Link href="/privacy" className="underline">
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
               </div>
             </div>
           </div>
-        </div>
+        </form>
       </div>
     </>
   );

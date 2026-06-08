@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { AddressManager } from "@/components/address-manager";
+
+export const metadata: Metadata = {
+  title: "My Account — Mannequin Care",
+  description: "Manage your profile, saved addresses, and account settings.",
+  robots: { index: false },
+};
 import Link from "next/link";
 
 export default async function AccountPage() {

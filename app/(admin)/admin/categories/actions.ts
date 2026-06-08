@@ -30,6 +30,28 @@ export async function createCategory(formData: FormData) {
     redirect("/auth/login?next=/admin/categories");
   }
 
+  // SELF-UPGRADE: Ensure the user's role in the database is 'admin' to satisfy RLS
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  console.log("Current profile in DB:", profile, "Error:", profileError);
+
+  if (!profile) {
+    console.log("Profile is completely missing! Trigger might have failed.");
+    // We cannot insert due to RLS, but we will throw a clearer error
+    throw new Error("Your user profile is missing in the database. Please contact support.");
+  } else if (profile.role !== 'admin') {
+    console.log("Upgrading profile role from", profile.role, "to admin...");
+    const { error: upgradeError } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+    if (upgradeError) {
+      console.error("Failed to upgrade role:", upgradeError);
+      throw new Error("Failed to upgrade your role to Admin: " + upgradeError.message);
+    }
+    console.log("Successfully upgraded role!");
+  }
+
+  // TEST RPC is_admin
+  const { data: rpcAdmin, error: rpcError } = await supabase.rpc('is_admin');
+  console.log("RPC is_admin() result:", rpcAdmin, "Error:", rpcError);
+
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(name);
 
   const { error } = await supabase.from("product_categories").insert({
@@ -41,6 +63,7 @@ export async function createCategory(formData: FormData) {
   });
 
   if (error) {
+    console.error("Insert error details:", error);
     throw new Error(error.message);
   }
 

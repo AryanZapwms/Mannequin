@@ -10,13 +10,14 @@ export default function Footer() {
           {/* Brand Section */}
           <div className="space-y-6">
             <Link href="/" className="inline-block">
-              <Image 
-                src="/logo.jpg" 
-                alt="Mannequin Care" 
-                width={140} 
-                height={40} 
-                className="h-10 w-auto transition-all duration-300" 
-                priority 
+              <Image
+                src="/logo.jpg"
+                alt="Mannequin Care"
+                width={140}
+                height={40}
+                className="h-10 w-auto transition-all duration-300"
+                style={{ width: "auto" }}
+                priority
               />
             </Link>
            
