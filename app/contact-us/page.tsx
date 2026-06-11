@@ -104,16 +104,17 @@ const contactDetails = [
   },
 ];
 
-export default function ContactUsPage({
+export default async function ContactUsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | undefined>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const success = searchParams?.success === "true";
-  const error = searchParams?.error;
+  const resolvedSearchParams = await searchParams;
+  const success = resolvedSearchParams?.success === "true";
+  const error = resolvedSearchParams?.error;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white -mt-20 md:-mt-24">
       {/* Hero */}
       <section className="bg-gray-50 py-16 md:py-20">
         <div className="container mx-auto max-w-6xl px-4 text-center">

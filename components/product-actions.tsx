@@ -4,10 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Heart, Minus, Plus, Share2, ShoppingCart } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { addToCart } from "@/lib/services/cart";
+import { getSessionUser } from "@/lib/auth-client";
 import { addToGuestCart } from "@/lib/services/guest-cart";
-import { addToWishlist, removeFromWishlist } from "@/lib/services/wishlist";
 
 interface ProductActionsProps {
   productId: string;
@@ -33,7 +31,6 @@ export function ProductActions({
   initialWishlistItemId = null,
 }: ProductActionsProps) {
   const router = useRouter();
-  const supabase = createClient();
   const [quantity, setQuantity] = useState(1);
   const [inWishlist, setInWishlist] = useState(initialInWishlist);
   const [wishlistItemId, setWishlistItemId] = useState<string | null>(initialWishlistItemId);
@@ -46,12 +43,15 @@ export function ProductActions({
   const handleAddToCart = () => {
     startCartTransition(async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const user = await getSessionUser();
 
         if (user) {
-          await addToCart(supabase, user.id, productId, quantity);
+          const res = await fetch("/api/cart", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId, quantity }),
+          });
+          if (!res.ok) throw new Error("Failed to add to cart");
         } else {
           addToGuestCart(productId, quantity, {
             id: productId,
@@ -75,9 +75,7 @@ export function ProductActions({
   const handleWishlist = () => {
     startWishlistTransition(async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const user = await getSessionUser();
 
         if (!user) {
           router.push(`/auth/login?next=/products/${productSlug}`);
@@ -85,14 +83,21 @@ export function ProductActions({
         }
 
         if (inWishlist && wishlistItemId) {
-          await removeFromWishlist(supabase, wishlistItemId);
+          const res = await fetch(`/api/wishlist/${wishlistItemId}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Failed to remove from wishlist");
           setInWishlist(false);
           setWishlistItemId(null);
           toast.success("Removed from wishlist");
         } else {
-          const item = await addToWishlist(supabase, user.id, productId);
+          const res = await fetch("/api/wishlist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId }),
+          });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body?.error || "Failed to update wishlist");
           setInWishlist(true);
-          setWishlistItemId(item.id);
+          setWishlistItemId(body.item.id);
           toast.success("Added to wishlist");
         }
       } catch (err: any) {

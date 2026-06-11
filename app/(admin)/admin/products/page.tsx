@@ -1,12 +1,15 @@
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { Product } from "@/lib/db/models/Product";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { deleteProduct } from "./actions";
 import { Edit2, Plus, Trash2 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
+import mongoose from "mongoose";
+import type { ProductDoc } from "@/lib/db/models/Product";
 
 const PAGE_SIZE = 20;
 
@@ -25,28 +28,39 @@ export default async function ProductsPage({ searchParams }: { searchParams: any
   const currentPage = Math.max(1, parseInt(sp?.page ?? "1", 10) || 1);
   const offset = (currentPage - 1) * PAGE_SIZE;
 
-  const supabase = await createClient();
+  await dbConnect();
 
-  let dbQuery = supabase
-    .from("products")
-    .select(
-      `id, name, slug, price, compare_at_price, stock, status, is_featured, thumbnail_url,
-      main_category:product_categories!products_main_category_id_fkey(id, name),
-      sub_category:product_categories!products_sub_category_id_fkey(id, name)`,
-      { count: "exact" }
-    )
-    .order("created_at", { ascending: false });
-
+  const filter: Record<string, any> = {};
   if (query) {
-    dbQuery = dbQuery.or(`name.ilike.%${query}%,slug.ilike.%${query}%`);
+    filter.$or = [
+      { name: { $regex: query, $options: "i" } },
+      { slug: { $regex: query, $options: "i" } },
+    ];
   }
 
-  dbQuery = dbQuery.range(offset, offset + PAGE_SIZE - 1);
+  const [productDocs, total] = await Promise.all([
+    Product.find(filter)
+      .populate("mainCategoryId", "name")
+      .populate("subCategoryId", "name")
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(PAGE_SIZE),
+    Product.countDocuments(filter),
+  ]);
 
-  const { data, count } = await dbQuery;
-
-  const products = data ?? [];
-  const total = count ?? 0;
+  const products = productDocs.map((p) => ({
+    id: p._id.toString(),
+    name: p.name,
+    slug: p.slug,
+    price: p.price,
+    compare_at_price: p.compareAtPrice ?? null,
+    stock: p.stock,
+    status: p.status,
+    is_featured: p.isFeatured,
+    thumbnail_url: p.thumbnailUrl ?? null,
+    main_category: p.mainCategoryId ? { id: (p.mainCategoryId as any)._id.toString(), name: (p.mainCategoryId as any).name } : null,
+    sub_category: p.subCategoryId ? { id: (p.subCategoryId as any)._id.toString(), name: (p.subCategoryId as any).name } : null,
+  }));
 
   return (
     <section className="space-y-6">

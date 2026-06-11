@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { SiteSetting } from "@/lib/db/models/SiteSetting";
 
 export async function upsertSetting(formData: FormData) {
   const key = (formData.get("key") as string | null) ?? "";
@@ -16,50 +17,31 @@ export async function upsertSetting(formData: FormData) {
   let parsedValue: unknown;
   try {
     parsedValue = value ? JSON.parse(value) : {};
-  } catch (error) {
+  } catch {
     throw new Error("Value must be valid JSON");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await requireAdmin();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/settings");
-  }
-
-  const { error } = await supabase.from("site_settings").upsert(
+  await dbConnect();
+  await SiteSetting.findOneAndUpdate(
+    { key: key.trim() },
     {
       key: key.trim(),
       value: parsedValue,
       description: description.trim() || null,
     },
-    { onConflict: "key" }
+    { upsert: true },
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/admin/settings");
 }
 
 export async function deleteSetting(settingId: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await requireAdmin();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/settings");
-  }
-
-  const { error } = await supabase.from("site_settings").delete().eq("id", settingId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await dbConnect();
+  await SiteSetting.findByIdAndDelete(settingId);
 
   revalidatePath("/admin/settings");
 }

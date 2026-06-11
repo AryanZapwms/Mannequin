@@ -1,5 +1,5 @@
 import { SignUpForm } from "@/components/sign-up-form";
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
 export default async function Page({
@@ -7,27 +7,16 @@ export default async function Page({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
 
-  if (user) {
+  if (session?.user) {
     const params = await searchParams;
-    const nextUrl = typeof params?.next === 'string' ? params.next : undefined;
-    
+    const nextUrl = typeof params?.next === "string" ? params.next : undefined;
+
     if (nextUrl) {
       redirect(nextUrl);
     } else {
-      let role = user.user_metadata?.role ?? "customer";
-      if (!role || role === "customer") {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (profile?.role) {
-          role = profile.role;
-        }
-      }
+      const role = session.user.role ?? "customer";
       redirect(role === "admin" || role === "staff" ? "/admin" : "/account");
     }
   }

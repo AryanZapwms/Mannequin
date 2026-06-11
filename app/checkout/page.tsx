@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
-import { getCartItems } from "@/lib/services/cart";
+import { getSessionUser } from "@/lib/auth-client";
 import { getGuestCart, clearGuestCart } from "@/lib/services/guest-cart";
 import { createRazorpayOrder, verifyPayment } from "@/lib/services/razorpay";
 import { BulkOrderModal } from "@/components/bulk-order-modal";
@@ -70,7 +69,6 @@ function AddressInput({
 }
 
 export default function CheckoutPage() {
-  const supabase = createClient();
   const router = useRouter();
 
   const [cartItems, setCartItems] = useState<(CartItem | GuestCartItem)[]>([]);
@@ -101,35 +99,36 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const loadCheckout = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getSessionUser();
 
       if (user) {
         setUserId(user.id);
         setUserEmail(user.email || null);
-        setUserPhone(user.phone || null);
         setIsGuest(false);
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name, phone")
-          .eq("id", user.id)
-          .single();
+        try {
+          const profileRes = await fetch("/api/account/profile");
+          const profile = profileRes.ok ? await profileRes.json() : null;
 
-        const name = profile?.display_name || user.user_metadata?.full_name || "";
-        setUserName(name);
-        setAddress((prev) => ({
-          ...prev,
-          full_name: name,
-          email: user.email || "",
-          phone: profile?.phone || user.phone || "",
-        }));
+          const name = profile?.displayName || user.name || "";
+          const phone = profile?.phone || "";
+          setUserName(name);
+          setUserPhone(phone);
+          setAddress((prev) => ({
+            ...prev,
+            full_name: name,
+            email: user.email || "",
+            phone,
+          }));
+        } catch (error) {
+          console.error("Error loading profile:", error);
+        }
 
         try {
-          const items = await getCartItems(supabase, user.id);
-          setCartItems(items);
-          if (items.length > 5) setShowBulkModal(true);
+          const res = await fetch("/api/cart");
+          const { items } = await res.json();
+          setCartItems(items ?? []);
+          if ((items ?? []).length > 5) setShowBulkModal(true);
         } catch (error) {
           console.error("Error loading cart:", error);
         }
@@ -144,7 +143,7 @@ export default function CheckoutPage() {
     };
 
     void loadCheckout();
-  }, [supabase]);
+  }, []);
 
   const updateAddress = (name: keyof AddressForm, value: string) => {
     setAddress((prev) => ({ ...prev, [name]: value }));
@@ -162,21 +161,18 @@ export default function CheckoutPage() {
     setCouponError("");
     if (!couponCode.trim()) return;
 
-    // Check coupon against site_settings
-    const { data } = await supabase
-      .from("site_settings")
-      .select("value")
-      .eq("key", `COUPON_${couponCode.toUpperCase().trim()}`)
-      .maybeSingle();
+    // Check coupon against site settings
+    const res = await fetch(`/api/coupons/${encodeURIComponent(couponCode.toUpperCase().trim())}`);
 
-    if (!data) {
+    if (!res.ok) {
       setCouponError("Invalid or expired coupon code.");
       setDiscountAmount(0);
       setCouponApplied(false);
       return;
     }
 
-    const couponData = data.value as { type: "percent" | "fixed"; value: number };
+    const { coupon } = await res.json();
+    const couponData = coupon as { type: "percent" | "fixed"; value: number };
     let discount = 0;
     if (couponData.type === "percent") {
       discount = Math.round(subtotal * (couponData.value / 100) * 100) / 100;

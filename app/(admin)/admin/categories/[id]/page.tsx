@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { ProductCategory } from "@/lib/db/models/ProductCategory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,25 +14,32 @@ export default async function EditCategoryPage({
      params: Promise<{ id: string }> 
    }) {
      const { id } = await params;
-     
-     const supabase = await createClient();
-     const [{ data: category }, { data: categories }] = await Promise.all([
-       supabase
-         .from("product_categories")
-         .select("id, name, slug, description, parent_id")
-         .eq("id", id)
-         .maybeSingle(),
-       supabase
-         .from("product_categories")
-         .select("id, name, parent_id")
-         .order("name", { ascending: true }),
+
+     await dbConnect();
+     const [categoryDoc, categoryDocs] = await Promise.all([
+       ProductCategory.findById(id),
+       ProductCategory.find().sort({ name: 1 }),
      ]);
 
-     if (!category) {
+     if (!categoryDoc) {
        notFound();
      }
 
-     const mainCategories = (categories ?? []).filter((item) => item.parent_id === null && item.id !== category.id);
+     const category = {
+       id: categoryDoc._id.toString(),
+       name: categoryDoc.name,
+       slug: categoryDoc.slug,
+       description: categoryDoc.description ?? null,
+       parent_id: categoryDoc.parentId ? categoryDoc.parentId.toString() : null,
+     };
+
+     const categories = categoryDocs.map((c) => ({
+       id: c._id.toString(),
+       name: c.name,
+       parent_id: c.parentId ? c.parentId.toString() : null,
+     }));
+
+     const mainCategories = categories.filter((item) => item.parent_id === null && item.id !== category.id);
 
      async function submit(formData: FormData) {
        "use server";

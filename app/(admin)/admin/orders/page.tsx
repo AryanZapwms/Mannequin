@@ -1,9 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { Order } from "@/lib/db/models/Order";
+import { User } from "@/lib/db/models/User";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { updateOrderStatus } from "./actions";
-import Link from "next/link";
 import { Pagination } from "@/components/pagination";
 
 const PAGE_SIZE = 10;
@@ -13,48 +14,38 @@ export default async function OrdersPage({ searchParams }: { searchParams: any }
   const currentPage = Math.max(1, parseInt(sp?.page ?? "1", 10) || 1);
   const offset = (currentPage - 1) * PAGE_SIZE;
 
-  const supabase = await createClient();
+  await dbConnect();
 
-  // Paginated orders
-  const { data: orders, count } = await supabase
-    .from("orders")
-    .select(
-      "id, order_number, status, payment_status, grand_total, subtotal, discount_total, tax_total, shipping_total, placed_at, user_id, shipping_address, billing_address, payment_provider",
-      { count: "exact" }
-    )
-    .order("placed_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
-
-  const entries = orders ?? [];
-  const total = count ?? 0;
-  const orderIds = entries.map((o) => o.id);
-
-  // Only fetch items and profiles for the current page's orders
-  const [{ data: items }, { data: profiles }] = await Promise.all([
-    orderIds.length
-      ? supabase.from("order_items").select("order_id, quantity").in("order_id", orderIds)
-      : Promise.resolve({ data: [] }),
-    entries.filter((o) => o.user_id).length
-      ? supabase
-          .from("profiles")
-          .select("id, display_name, phone, email: metadata->email")
-          .in(
-            "id",
-            entries.filter((o) => o.user_id).map((o) => o.user_id!)
-          )
-      : Promise.resolve({ data: [] }),
+  const [orderDocs, total] = await Promise.all([
+    Order.find().sort({ placedAt: -1 }).skip(offset).limit(PAGE_SIZE),
+    Order.countDocuments(),
   ]);
 
-  const profileMap = new Map<string, any>();
-  (profiles ?? []).forEach((profile) => {
-    profileMap.set(profile.id, profile);
+  const userIds = orderDocs.filter((o) => o.userId).map((o) => o.userId!.toString());
+  const userDocs = userIds.length
+    ? await User.find({ _id: { $in: userIds } }).select("displayName phone email")
+    : [];
+
+  const profileMap = new Map<string, { display_name: string | null; phone: string | null; email: string | null }>();
+  userDocs.forEach((u) => {
+    profileMap.set(u._id.toString(), {
+      display_name: u.displayName ?? null,
+      phone: u.phone ?? null,
+      email: u.email ?? null,
+    });
   });
 
-  const itemCountByOrder = new Map<string, number>();
-  (items ?? []).forEach((item) => {
-    const current = itemCountByOrder.get(item.order_id) ?? 0;
-    itemCountByOrder.set(item.order_id, current + (item.quantity ?? 0));
-  });
+  const entries = orderDocs.map((order) => ({
+    id: order._id.toString(),
+    order_number: order.orderNumber,
+    status: order.status,
+    payment_status: order.paymentStatus,
+    grand_total: order.grandTotal,
+    placed_at: order.placedAt ? order.placedAt.toISOString() : null,
+    user_id: order.userId ? order.userId.toString() : null,
+    shipping_address: order.shippingAddress as any,
+    item_count: (order.items ?? []).reduce((sum, item) => sum + (item.quantity ?? 0), 0),
+  }));
 
   return (
     <section className="space-y-6">
@@ -74,7 +65,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: any }
           ) : (
             entries.map((order) => {
               const customer = order.user_id ? profileMap.get(order.user_id) : null;
-              const shippingAddress = order.shipping_address as any;
+              const shippingAddress = order.shipping_address;
               const statusColors: Record<string, string> = {
                 pending: "bg-yellow-100 text-yellow-800",
                 processing: "bg-blue-100 text-blue-800",
@@ -124,7 +115,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: any }
                   <div className="text-right">
                     <p className="text-lg font-semibold">₹{Number(order.grand_total ?? 0).toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {itemCountByOrder.get(order.id) ?? 0} items
+                      {order.item_count} items
                     </p>
                     <div className="mt-2 space-y-1">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[order.status] || 'bg-gray-100'}`}>

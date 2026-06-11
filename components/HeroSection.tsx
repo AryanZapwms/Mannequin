@@ -223,8 +223,8 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative w-full overflow-hidden bg-amber-50 pt-5">
-      <div className="mx-auto max-w-7xl px-6 py-12 md:py-16 lg:py-20">
+    <section className="relative w-full overflow-hidden bg-amber-50 pt-[calc(5rem+1.25rem)] md:pt-[calc(6rem+1.25rem)]">
+      <div className="mx-auto max-w-7xl px-6 pb-12 md:pb-16 lg:pb-20">
         {/* Grid Layout */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center">
           {/* Left Content */}

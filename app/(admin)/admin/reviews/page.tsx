@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { ProductReview } from "@/lib/db/models/ProductReview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -6,16 +7,25 @@ import { updateReviewStatus } from "./actions";
 import { Star } from "lucide-react";
 
 export default async function ReviewsPage() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("product_reviews")
-    .select(
-      `id, rating, title, body, status, created_at, user_id, admin_response,
-      product:products(id, name)`
-    )
-    .order("created_at", { ascending: false });
+  await dbConnect();
+  const reviewDocs = await ProductReview.find()
+    .populate("productId", "name")
+    .sort({ createdAt: -1 });
 
-  const reviews = data ?? [];
+  const reviews = reviewDocs.map((review) => {
+    const product = review.productId as any;
+    return {
+      id: review._id.toString(),
+      rating: review.rating,
+      title: review.title ?? null,
+      body: review.body,
+      status: review.status,
+      created_at: review.createdAt ? review.createdAt.toISOString() : null,
+      user_id: review.userId ? review.userId.toString() : null,
+      admin_response: review.adminResponse ?? null,
+      product: product ? { id: product._id.toString(), name: product.name } : null,
+    };
+  });
 
   return (
     <section className="space-y-6">

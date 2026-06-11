@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { BlogPost } from "@/lib/db/models/BlogPost";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -17,17 +18,24 @@ function readingTime(content: string | null): number {
 }
 
 export default async function BlogPage() {
-  const supabase = await createClient();
+  await dbConnect();
 
-  const { data } = await supabase
-    .from("blog_posts")
-    .select(
-      "id, title, slug, excerpt, cover_image_url, published_at, tags, content, author:author_id(display_name)"
-    )
-    .eq("status", "published")
-    .order("published_at", { ascending: false });
+  const postDocs = await BlogPost.find({ status: "published" })
+    .populate("authorId", "displayName")
+    .sort({ publishedAt: -1 });
 
-  const posts = data ?? [];
+  const posts = postDocs.map((p) => ({
+    id: p._id.toString(),
+    title: p.title,
+    slug: p.slug,
+    excerpt: p.excerpt ?? null,
+    cover_image_url: p.coverImageUrl ?? null,
+    published_at: p.publishedAt ? p.publishedAt.toISOString() : null,
+    tags: p.tags ?? [],
+    content: p.content ?? null,
+    author: p.authorId ? { display_name: (p.authorId as any).displayName ?? null } : null,
+  }));
+
   const [featured, ...rest] = posts;
 
   return (
@@ -83,9 +91,9 @@ export default async function BlogPage() {
                   </div>
 
                   <div className="flex flex-col justify-center p-8">
-                    {(featured.tags as string[] | null)?.length ? (
+                    {featured.tags.length ? (
                       <div className="mb-3 flex flex-wrap gap-2">
-                        {(featured.tags as string[]).slice(0, 3).map((tag) => (
+                        {featured.tags.slice(0, 3).map((tag) => (
                           <span
                             key={tag}
                             className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700"
@@ -116,8 +124,8 @@ export default async function BlogPage() {
                         <Clock className="h-3 w-3" />
                         {readingTime(featured.content)} min read
                       </span>
-                      {(featured.author as any)?.display_name && (
-                        <span>by {(featured.author as any).display_name}</span>
+                      {featured.author?.display_name && (
+                        <span>by {featured.author.display_name}</span>
                       )}
                     </div>
                     <span className="inline-flex items-center gap-2 text-sm font-semibold text-black group-hover:gap-3 transition-all">
@@ -152,9 +160,9 @@ export default async function BlogPage() {
                         )}
                       </div>
                       <div className="flex flex-col flex-1 p-5">
-                        {(post.tags as string[] | null)?.length ? (
+                        {post.tags.length ? (
                           <div className="mb-2 flex flex-wrap gap-1.5">
-                            {(post.tags as string[]).slice(0, 2).map((tag) => (
+                            {post.tags.slice(0, 2).map((tag) => (
                               <span
                                 key={tag}
                                 className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { BlogPost, type BlogStatus } from "@/lib/db/models/BlogPost";
 
 const slugify = (input: string) =>
   input
@@ -17,37 +19,27 @@ export async function createPost(formData: FormData) {
   const content = (formData.get("content") as string | null) ?? "";
   const excerpt = (formData.get("excerpt") as string | null) ?? "";
   const coverImageUrl = (formData.get("coverImageUrl") as string | null) ?? "";
-  const status = (formData.get("status") as string | null) ?? "draft";
+  const status = ((formData.get("status") as string | null) ?? "draft") as BlogStatus;
 
   if (!title.trim()) {
     throw new Error("Title is required");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login?next=/admin/blogs");
-  }
+  const user = await requireStaff();
 
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(title);
 
-  const { error } = await supabase.from("blog_posts").insert({
+  await dbConnect();
+  await BlogPost.create({
     title: title.trim(),
     slug,
     content: content.trim() || null,
     excerpt: excerpt.trim() || null,
-    cover_image_url: coverImageUrl.trim() || null,
+    coverImageUrl: coverImageUrl.trim() || null,
     status,
-    author_id: user.id,
-    published_at: status === "published" ? new Date().toISOString() : null,
+    authorId: user.id,
+    publishedAt: status === "published" ? new Date() : null,
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/admin/blogs");
   redirect("/admin/blogs");
@@ -59,39 +51,26 @@ export async function updatePost(postId: string, formData: FormData) {
   const content = (formData.get("content") as string | null) ?? "";
   const excerpt = (formData.get("excerpt") as string | null) ?? "";
   const coverImageUrl = (formData.get("coverImageUrl") as string | null) ?? "";
-  const status = (formData.get("status") as string | null) ?? "draft";
+  const status = ((formData.get("status") as string | null) ?? "draft") as BlogStatus;
 
   if (!title.trim()) {
     throw new Error("Title is required");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login?next=/admin/blogs");
-  }
+  await requireStaff();
 
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(title);
 
-  const { error } = await supabase
-    .from("blog_posts")
-    .update({
-      title: title.trim(),
-      slug,
-      content: content.trim() || null,
-      excerpt: excerpt.trim() || null,
-      cover_image_url: coverImageUrl.trim() || null,
-      status,
-      published_at: status === "published" ? new Date().toISOString() : null,
-    })
-    .eq("id", postId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await dbConnect();
+  await BlogPost.findByIdAndUpdate(postId, {
+    title: title.trim(),
+    slug,
+    content: content.trim() || null,
+    excerpt: excerpt.trim() || null,
+    coverImageUrl: coverImageUrl.trim() || null,
+    status,
+    publishedAt: status === "published" ? new Date() : null,
+  });
 
   revalidatePath(`/admin/blogs/${postId}`);
   revalidatePath("/admin/blogs");
@@ -99,20 +78,10 @@ export async function updatePost(postId: string, formData: FormData) {
 }
 
 export async function deletePost(postId: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await requireStaff();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/blogs");
-  }
-
-  const { error } = await supabase.from("blog_posts").delete().eq("id", postId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await dbConnect();
+  await BlogPost.findByIdAndDelete(postId);
 
   revalidatePath("/admin/blogs");
 }

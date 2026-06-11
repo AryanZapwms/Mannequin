@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { getUserOrders } from "@/lib/services/order";
 import type { Order } from "@/lib/services/order";
 
@@ -12,16 +12,13 @@ export const metadata: Metadata = {
 };
 
 export default async function OrdersPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect("/auth/login?next=/orders");
   }
 
-  const orders = await getUserOrders(supabase, user.id);
+  const orders = await getUserOrders(user.id);
 
   return (
     <section className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10">

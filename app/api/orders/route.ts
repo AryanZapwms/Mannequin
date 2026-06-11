@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { generateOrderNumber } from "@/lib/services/order";
+import mongoose from "mongoose";
+import { dbConnect } from "@/lib/db/connect";
+import { getCurrentUser } from "@/lib/auth-helpers";
+import { Product } from "@/lib/db/models/Product";
+import { CartItem } from "@/lib/db/models/CartItem";
+import { createOrder, generateOrderNumber } from "@/lib/services/order";
 import {
   sendOrderConfirmationEmail,
   sendAdminOrderNotification,
@@ -32,47 +35,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the current user (may be null for guests)
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
-    const adminSupabase = createAdminClient();
+    await dbConnect();
     const orderNumber = generateOrderNumber();
 
     const paymentStatus =
       paymentMethod === "razorpay" && razorpayPaymentId ? "paid" : "pending";
 
-    // Create order via admin client (bypasses RLS — safe because this is server-side)
-    const { data: createdOrder, error: orderError } = await adminSupabase
-      .from("orders")
-      .insert({
-        order_number: orderNumber,
-        user_id: user?.id ?? null,
-        status: "pending",
-        payment_status: paymentStatus,
-        subtotal: subtotal ?? 0,
-        discount_total: body.discountTotal ?? 0,
-        tax_total: tax ?? 0,
-        shipping_total: shipping ?? 0,
-        grand_total: total ?? 0,
-        currency: "INR",
-        payment_provider: paymentMethod,
-        billing_address: shippingAddress,
-        shipping_address: shippingAddress,
-        notes: paymentMethod === "cod" ? "Cash on Delivery" : undefined,
-      })
-      .select()
-      .single();
-
-    if (orderError) {
-      console.error("Order creation error:", orderError);
-      return NextResponse.json({ error: orderError.message }, { status: 500 });
-    }
-
-    // Insert order items
-    const itemsToInsert = cartItems.map((item: any) => ({
-      order_id: createdOrder.id,
+    // Build order items from cart payload
+    const orderItems = cartItems.map((item: any) => ({
       product_id: item.product_id,
       quantity: item.quantity,
       unit_price: item.product?.price ?? 0,
@@ -84,35 +56,56 @@ export async function POST(request: NextRequest) {
       },
     }));
 
-    const { error: itemsError } = await adminSupabase
-      .from("order_items")
-      .insert(itemsToInsert);
+    // --- Transaction: Order.create + Product.decrementStock + CartItem.deleteMany ---
+    const session = await mongoose.startSession();
+    let createdOrder;
 
-    if (itemsError) {
-      console.error("Order items error:", itemsError);
-      // Don't fail the whole request — order was created, items insertion failed
-    }
+    try {
+      session.startTransaction();
 
-    // Decrement stock for each product
-    for (const item of cartItems) {
-      if (item.product_id && item.quantity) {
-        await adminSupabase.rpc("decrement_stock", {
-          p_product_id: item.product_id,
-          p_quantity: item.quantity,
-        }).catch((e) => console.error("Stock decrement error:", e));
+      createdOrder = await createOrder(
+        {
+          order_number: orderNumber,
+          user_id: user?.id ?? null,
+          status: "pending",
+          payment_status: paymentStatus,
+          subtotal: subtotal ?? 0,
+          discount_total: body.discountTotal ?? 0,
+          tax_total: tax ?? 0,
+          shipping_total: shipping ?? 0,
+          grand_total: total ?? 0,
+          currency: "INR",
+          payment_provider: paymentMethod,
+          billing_address: shippingAddress,
+          shipping_address: shippingAddress,
+          notes: paymentMethod === "cod" ? "Cash on Delivery" : undefined,
+        },
+        orderItems,
+        { session },
+      );
+
+      // Decrement stock for each product inside the transaction
+      for (const item of cartItems) {
+        if (item.product_id && item.quantity) {
+          await Product.decrementStock(item.product_id, item.quantity, session);
+        }
       }
+
+      // Clear cart for logged-in users inside the transaction
+      if (user?.id) {
+        await CartItem.deleteMany({ userId: user.id }, { session });
+      }
+
+      await session.commitTransaction();
+    } catch (txError) {
+      await session.abortTransaction();
+      console.error("Order transaction error:", txError);
+      return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+    } finally {
+      await session.endSession();
     }
 
-    // Clear cart for logged-in users
-    if (user?.id) {
-      await adminSupabase
-        .from("cart_items")
-        .delete()
-        .eq("user_id", user.id)
-        .catch((e) => console.error("Cart clear error:", e));
-    }
-
-    // Send confirmation emails
+    // --- Post-transaction: send emails (non-critical, fire-and-forget) ---
     const customerEmail =
       shippingAddress.email ||
       user?.email ||

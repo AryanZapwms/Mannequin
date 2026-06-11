@@ -1,20 +1,16 @@
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { Product } from "@/lib/db/models/Product";
+import { toShopProduct } from "@/lib/services/product";
 import { ShopProductCard } from "@/components/shop-product-card";
 
 export default async function OurProducts() {
-  const supabase = await createClient();
+  await dbConnect();
 
-  // Fetch only 6 active products
-  const { data: products } = await supabase
-    .from("products")
-    .select(
-      "*, main_category:product_categories!main_category_id(name), sub_category:product_categories!sub_category_id(name)"
-    )
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
+  const productDocs = await Product.find({ status: "active" })
+    .sort({ createdAt: -1 })
     .limit(6);
 
-  const allProducts = products ?? [];
+  const allProducts = productDocs.map(toShopProduct);
 
   return (
     <div className="relative w-full overflow-hidden bg-amber-50">

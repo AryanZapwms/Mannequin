@@ -2,11 +2,11 @@
 
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { Session } from "@supabase/supabase-js";
+import { signOut } from "next-auth/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createClient } from "@/lib/supabase/client";
+import { getSessionUser, type SessionUser } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { getGuestCart } from "@/lib/services/guest-cart";
 import {
@@ -106,19 +106,14 @@ function IconButton({ label, icon, href, onClick, badgeCount }: IconButtonProps)
 }
 
 type UserMenuProps = {
-  session: Session | null;
+  user: SessionUser | null;
   onSignOut: () => Promise<void>;
 };
 
-function UserMenu({ session, onSignOut }: UserMenuProps) {
+function UserMenu({ user, onSignOut }: UserMenuProps) {
   const router = useRouter();
-  const user = session?.user ?? null;
-  const name =
-    (user?.user_metadata?.full_name as string | undefined) ||
-    user?.user_metadata?.name ||
-    user?.email ||
-    "Account";
-  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const name = user?.name || user?.email || "Account";
+  const avatarUrl = user?.image ?? undefined;
   const initials = name
     .split(" ")
     .map((segment) => segment[0])
@@ -204,8 +199,7 @@ function UserMenu({ session, onSignOut }: UserMenuProps) {
 
 export default function Header() {
   const pathname = usePathname();
-  const supabase = useMemo(() => createClient(), []);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -217,27 +211,32 @@ export default function Header() {
     [],
   );
 
-  const fetchCounts = useCallback(async () => {
-    if (session?.user) {
-      const [{ count: wishlist }, { count: cart }] = await Promise.all([
-        supabase
-          .from("wishlist_items")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", session.user.id),
-        supabase
-          .from("cart_items")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", session.user.id),
-      ]);
+  const fetchCounts = useCallback(async (currentUser: SessionUser | null) => {
+    if (currentUser) {
+      try {
+        const [wishlistRes, cartRes] = await Promise.all([
+          fetch("/api/wishlist"),
+          fetch("/api/cart"),
+        ]);
+        const wishlist = wishlistRes.ok ? await wishlistRes.json() : { items: [] };
+        const cart = cartRes.ok ? await cartRes.json() : { items: [] };
 
-      setWishlistCount(typeof wishlist === "number" ? wishlist : 0);
-      setCartCount(typeof cart === "number" ? cart : 0);
+        setWishlistCount((wishlist.items ?? []).length);
+        setCartCount(
+          (cart.items ?? []).reduce(
+            (sum: number, item: { quantity: number }) => sum + item.quantity,
+            0,
+          ),
+        );
+      } catch (error) {
+        console.error("Error fetching header counts:", error);
+      }
     } else {
       const guestCart = getGuestCart();
       setCartCount(guestCart.reduce((sum, item) => sum + item.quantity, 0));
       setWishlistCount(0);
     }
-  }, [session, supabase]);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -249,27 +248,22 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    const getInitialSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session ?? null);
+    let cancelled = false;
+    const loadSession = async () => {
+      const sessionUser = await getSessionUser();
+      if (!cancelled) {
+        setUser(sessionUser);
+        void fetchCounts(sessionUser);
+      }
     };
-    void getInitialSession();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
+    void loadSession();
     return () => {
-      subscription.unsubscribe();
+      cancelled = true;
     };
-  }, [supabase]);
+  }, [pathname, fetchCounts]);
 
   useEffect(() => {
-    void fetchCounts();
-  }, [session, fetchCounts]);
-
-  useEffect(() => {
-    if (session?.user) {
+    if (user) {
       return;
     }
 
@@ -282,39 +276,7 @@ export default function Header() {
     return () => {
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, [session?.user]);
-
-  useEffect(() => {
-    if (!session?.user) {
-      return;
-    }
-    const wishlistChannel = supabase
-      .channel("wishlist-items-count")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "wishlist_items", filter: `user_id=eq.${session.user.id}` },
-        () => {
-          void fetchCounts();
-        },
-      )
-      .subscribe();
-
-    const cartChannel = supabase
-      .channel("cart-items-count")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "cart_items", filter: `user_id=eq.${session.user.id}` },
-        () => {
-          void fetchCounts();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(wishlistChannel);
-      supabase.removeChannel(cartChannel);
-    };
-  }, [session, supabase, fetchCounts]);
+  }, [user]);
 
   useEffect(() => {
     if (mobileMenuOpen) {
@@ -398,9 +360,9 @@ export default function Header() {
               onClick={closeMobileMenu}
             />
             <UserMenu
-              session={session}
+              user={user}
               onSignOut={async () => {
-                await supabase.auth.signOut();
+                await signOut({ callbackUrl: "/" });
               }}
             />
             <IconButton
@@ -471,15 +433,15 @@ export default function Header() {
               <IconButton
                 label="Account"
                 icon={<User className="h-5 w-5" />}
-                href={session?.user ? "/account" : "/auth/login"}
+                href={user ? "/account" : "/auth/login"}
                 onClick={closeMobileMenu}
               />
             </div>
             <div className="mt-auto">
               <UserMenu
-                session={session}
+                user={user}
                 onSignOut={async () => {
-                  await supabase.auth.signOut();
+                  await signOut({ callbackUrl: "/" });
                   closeMobileMenu();
                 }}
               />

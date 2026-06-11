@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { getSessionUser } from "@/lib/auth-client";
 import type { UserAddress } from "@/lib/services/address";
-import { getAddresses, createAddress } from "@/lib/services/address";
 import type { CartItem } from "@/lib/services/cart";
 
 interface CheckoutFormProps {
@@ -26,7 +25,6 @@ export function CheckoutForm({
   onSubmit,
   loading: isLoading = false,
 }: CheckoutFormProps) {
-  const supabase = createClient();
   const [userId, setUserId] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,13 +42,15 @@ export function CheckoutForm({
 
   useEffect(() => {
     const loadAddresses = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getSessionUser();
       if (user) {
         setUserId(user.id);
         try {
-          const userAddresses = await getAddresses(supabase, user.id, "shipping");
-          setAddresses(userAddresses);
-          if (userAddresses.length > 0) {
+          const res = await fetch("/api/addresses?type=shipping");
+          if (!res.ok) throw new Error("Failed to load addresses");
+          const { addresses: userAddresses } = await res.json();
+          setAddresses(userAddresses ?? []);
+          if (userAddresses?.length > 0) {
             setSelectedAddress(userAddresses[0].id);
             setShowNewAddressForm(false);
           } else {
@@ -65,7 +65,7 @@ export function CheckoutForm({
     };
 
     void loadAddresses();
-  }, [supabase]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,17 +81,23 @@ export function CheckoutForm({
 
       try {
         if (userId) {
-          const address = await createAddress(supabase, userId, {
-            type: "shipping",
-            full_name: formData.full_name,
-            phone: formData.phone,
-            street_address: formData.street_address,
-            city: formData.city,
-            state: formData.state,
-            postal_code: formData.postal_code,
-            country: "India",
-            is_default: addresses.length === 0,
+          const res = await fetch("/api/addresses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "shipping",
+              full_name: formData.full_name,
+              phone: formData.phone,
+              street_address: formData.street_address,
+              city: formData.city,
+              state: formData.state,
+              postal_code: formData.postal_code,
+              country: "India",
+              is_default: addresses.length === 0,
+            }),
           });
+          if (!res.ok) throw new Error("Failed to create address");
+          const { address } = await res.json();
           addressId = address.id;
         }
       } catch (error) {

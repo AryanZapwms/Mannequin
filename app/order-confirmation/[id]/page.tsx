@@ -2,13 +2,10 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { getOrderById } from "@/lib/services/order";
 import type { Order } from "@/lib/services/order";
 import { CheckCircle } from "lucide-react";
 
 export default function OrderConfirmationPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = createClient();
   const { id } = use(params);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +13,9 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ id
   useEffect(() => {
     const loadOrder = async () => {
       try {
-        const orderData = await getOrderById(supabase, id);
+        const res = await fetch(`/api/orders/${id}`);
+        if (!res.ok) throw new Error("Failed to load order");
+        const { order: orderData } = await res.json();
         setOrder(orderData);
       } catch (error) {
         console.error("Error loading order:", error);
@@ -26,7 +25,7 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ id
     };
 
     void loadOrder();
-  }, [supabase, id]);
+  }, [id]);
 
   if (loading) {
     return (

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { Product, type ProductStatus } from "@/lib/db/models/Product";
 
 const slugify = (input: string) =>
   input
@@ -24,7 +26,7 @@ export async function createProduct(formData: FormData) {
   const description = (formData.get("description") as string | null) ?? "";
   const sku = (formData.get("sku") as string | null) ?? "";
   const thumbnailUrl = (formData.get("thumbnailUrl") as string | null) ?? "";
-  const status = (formData.get("status") as string | null) ?? "draft";
+  const status = ((formData.get("status") as string | null) ?? "draft") as ProductStatus;
   const mainCategoryId = (formData.get("mainCategoryId") as string | null) || null;
   const subCategoryId = (formData.get("subCategoryId") as string | null) || null;
   const stockValue = formData.get("stock");
@@ -41,36 +43,26 @@ export async function createProduct(formData: FormData) {
   const compareAtPrice = parsePrice(comparePriceValue) || null;
   const isFeatured = parseBoolean(isFeaturedValue);
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login?next=/admin/products");
-  }
+  const user = await requireStaff();
 
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(name);
 
-  const { error } = await supabase.from("products").insert({
+  await dbConnect();
+  await Product.create({
     name: name.trim(),
     slug,
     description: description.trim() || null,
     sku: sku.trim() || null,
     price,
-    compare_at_price: compareAtPrice,
+    compareAtPrice,
     stock: Number.isFinite(stock) ? stock : 0,
-    main_category_id: mainCategoryId,
-    sub_category_id: subCategoryId,
+    mainCategoryId,
+    subCategoryId,
     status,
-    is_featured: isFeatured,
-    thumbnail_url: thumbnailUrl.trim() || null,
-    created_by: user.id,
+    isFeatured,
+    thumbnailUrl: thumbnailUrl.trim() || null,
+    createdBy: user.id,
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/admin/products");
   revalidatePath("/");
@@ -85,7 +77,7 @@ export async function updateProduct(productId: string, formData: FormData) {
   const description = (formData.get("description") as string | null) ?? "";
   const sku = (formData.get("sku") as string | null) ?? "";
   const thumbnailUrl = (formData.get("thumbnailUrl") as string | null) ?? "";
-  const status = (formData.get("status") as string | null) ?? "draft";
+  const status = ((formData.get("status") as string | null) ?? "draft") as ProductStatus;
   const mainCategoryId = (formData.get("mainCategoryId") as string | null) || null;
   const subCategoryId = (formData.get("subCategoryId") as string | null) || null;
   const stockValue = formData.get("stock");
@@ -102,44 +94,27 @@ export async function updateProduct(productId: string, formData: FormData) {
   const compareAtPrice = parsePrice(comparePriceValue) || null;
   const isFeatured = parseBoolean(isFeaturedValue);
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login?next=/admin/products");
-  }
+  await requireStaff();
 
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(name);
 
-  const { data: existing } = await supabase
-    .from("products")
-    .select("slug")
-    .eq("id", productId)
-    .single();
+  await dbConnect();
+  const existing = await Product.findById(productId).select("slug");
 
-  const { error } = await supabase
-    .from("products")
-    .update({
-      name: name.trim(),
-      slug,
-      description: description.trim() || null,
-      sku: sku.trim() || null,
-      price,
-      compare_at_price: compareAtPrice,
-      stock: Number.isFinite(stock) ? stock : 0,
-      main_category_id: mainCategoryId,
-      sub_category_id: subCategoryId,
-      status,
-      is_featured: isFeatured,
-      thumbnail_url: thumbnailUrl.trim() || null,
-    })
-    .eq("id", productId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await Product.findByIdAndUpdate(productId, {
+    name: name.trim(),
+    slug,
+    description: description.trim() || null,
+    sku: sku.trim() || null,
+    price,
+    compareAtPrice,
+    stock: Number.isFinite(stock) ? stock : 0,
+    mainCategoryId,
+    subCategoryId,
+    status,
+    isFeatured,
+    thumbnailUrl: thumbnailUrl.trim() || null,
+  });
 
   revalidatePath(`/admin/products/${productId}`);
   revalidatePath("/admin/products");
@@ -153,25 +128,11 @@ export async function updateProduct(productId: string, formData: FormData) {
 }
 
 export async function deleteProduct(productId: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await requireStaff();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/products");
-  }
-
-  const { data: existing } = await supabase
-    .from("products")
-    .select("slug")
-    .eq("id", productId)
-    .single();
-
-  const { error } = await supabase.from("products").delete().eq("id", productId);
-  if (error) {
-    throw new Error(error.message);
-  }
+  await dbConnect();
+  const existing = await Product.findById(productId).select("slug");
+  await Product.findByIdAndDelete(productId);
 
   revalidatePath("/admin/products");
   revalidatePath("/");

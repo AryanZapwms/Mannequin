@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,10 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-
-type RoleOption = "customer" | "staff" | "admin";
 
 export function LoginForm({
   className,
@@ -27,44 +25,33 @@ export function LoginForm({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const result = await signIn("credentials", {
         email,
         password,
+        redirect: false,
       });
-      if (error) throw error;
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        throw new Error("Unable to load user session");
+      if (result?.error) {
+        throw new Error("Invalid email or password");
       }
 
-      let role: RoleOption = (user.user_metadata?.role as RoleOption | undefined) ?? "customer";
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+      const role = session?.user?.role ?? "customer";
 
-      if (!role || role === "customer") {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profile?.role) {
-          role = profile.role as RoleOption;
-        }
-      }
-
-      const destination = role === "admin" || role === "staff" ? "/admin" : "/account";
+      const nextUrl = searchParams.get("next");
+      const destination =
+        nextUrl ?? (role === "admin" || role === "staff" ? "/admin" : "/account");
       router.push(destination);
+      router.refresh();
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,7 +38,6 @@ export function SignUpForm({
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
@@ -49,18 +48,29 @@ export function SignUpForm({
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, role }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Unable to create account");
+      }
+
+      const result = await signIn("credentials", {
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/protected`,
-          data: {
-            role,
-          },
-        },
+        redirect: false,
       });
-      if (error) throw error;
-      router.push("/auth/sign-up-success");
+
+      if (result?.error) {
+        throw new Error("Account created. Please log in.");
+      }
+
+      router.push(role === "admin" || role === "staff" ? "/admin" : "/account");
+      router.refresh();
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {

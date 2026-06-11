@@ -15,7 +15,7 @@ interface CartItemRowProps {
 export function CartItemRow({ item, onUpdate, onRemove }: CartItemRowProps) {
   const [isPending, startTransition] = useTransition();
   const product = item.product;
-  const itemId = "id" in item ? item.id : item.product_id;
+  const itemId = ("id" in item && item.id) ? item.id : item.product_id;
 
   const handleQuantityChange = (newQuantity: number) => {
     if (newQuantity <= 0) return;

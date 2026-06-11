@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { ProductCategory } from "@/lib/db/models/ProductCategory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,14 +9,17 @@ import Link from "next/link";
 import { ImageUpload } from "@/components/image-upload";
 
 export default async function NewProductPage() {
-  const supabase = await createClient();
-  const { data: categories } = await supabase
-    .from("product_categories")
-    .select("id, name, parent_id")
-    .order("name", { ascending: true });
+  await dbConnect();
+  const categoryDocs = await ProductCategory.find().sort({ name: 1 });
 
-  const mainCategories = (categories ?? []).filter((category) => category.parent_id === null);
-  const subCategories = (categories ?? []).filter((category) => category.parent_id !== null);
+  const categories = categoryDocs.map((c) => ({
+    id: c._id.toString(),
+    name: c.name,
+    parent_id: c.parentId ? c.parentId.toString() : null,
+  }));
+
+  const mainCategories = categories.filter((category) => category.parent_id === null);
+  const subCategories = categories.filter((category) => category.parent_id !== null);
 
   return (
     <section className="mx-auto max-w-4xl space-y-6">
@@ -109,8 +113,8 @@ export default async function NewProductPage() {
               <Label>Thumbnail</Label>
               <ImageUpload
                 name="thumbnailUrl"
-                bucket="product-images"
-                folder="thumbnails"
+                publicIdName="thumbnailPublicId"
+                folder="products/thumbnails"
                 label="Upload Thumbnail"
               />
             </div>

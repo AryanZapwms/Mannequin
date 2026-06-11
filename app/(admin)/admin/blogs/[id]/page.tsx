@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { BlogPost } from "@/lib/db/models/BlogPost";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,16 +17,24 @@ export default async function EditBlogPostPage({
   
   }) {
     const { id } = await params;
-  const supabase = await createClient();
-  const { data: post } = await supabase
-    .from("blog_posts")
-    .select("id, title, slug, excerpt, content, cover_image_url, status")
-    .eq("id", id)
-    .maybeSingle();
+  await dbConnect();
+  const postDoc = await BlogPost.findById(id).select(
+    "title slug excerpt content coverImageUrl status"
+  );
 
-  if (!post) {
+  if (!postDoc) {
     notFound();
   }
+
+  const post = {
+    id: postDoc._id.toString(),
+    title: postDoc.title,
+    slug: postDoc.slug,
+    excerpt: postDoc.excerpt ?? null,
+    content: postDoc.content ?? null,
+    cover_image_url: postDoc.coverImageUrl ?? null,
+    status: postDoc.status,
+  };
 
   async function submit(formData: FormData) {
     "use server";
@@ -79,9 +88,11 @@ export default async function EditBlogPostPage({
               <Label>Cover image</Label>
               <ImageUpload
                 name="coverImageUrl"
+                publicIdName="coverImagePublicId"
                 defaultValue={post.cover_image_url ?? ""}
-                bucket="blog-images"
-                folder="covers"
+                folder="blogs/covers"
+                ownerType="blog"
+                ownerId={post.id}
                 label="Upload Cover"
               />
             </div>

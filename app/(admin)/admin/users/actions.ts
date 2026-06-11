@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { User } from "@/lib/db/models/User";
 
 export async function updateUserRole(formData: FormData) {
   const profileId = formData.get("profileId");
@@ -12,23 +13,10 @@ export async function updateUserRole(formData: FormData) {
     throw new Error("Profile id is required");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await requireAdmin();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/users");
-  }
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ role })
-    .eq("id", profileId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await dbConnect();
+  await User.findByIdAndUpdate(profileId, { role });
 
   revalidatePath("/admin/users");
 }

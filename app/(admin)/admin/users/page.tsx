@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { User } from "@/lib/db/models/User";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -6,13 +7,18 @@ import { updateUserRole } from "./actions";
 import Image from "next/image";
 
 export default async function UsersPage() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, display_name, role, avatar_url, metadata")
-    .order("created_at", { ascending: false });
+  await dbConnect();
+  const userDocs = await User.find()
+    .select("displayName role avatarUrl email")
+    .sort({ createdAt: -1 });
 
-  const profiles = data ?? [];
+  const profiles = userDocs.map((u) => ({
+    id: u._id.toString(),
+    display_name: u.displayName ?? null,
+    role: u.role,
+    avatar_url: u.avatarUrl ?? null,
+    email: u.email ?? null,
+  }));
 
   return (
     <section className="space-y-6">
@@ -29,7 +35,7 @@ export default async function UsersPage() {
             <p className="text-sm text-muted-foreground">No users found.</p>
           ) : (
             profiles.map((profile) => {
-              const email = (profile.metadata as Record<string, unknown> | null)?.email as string | undefined;
+              const email = profile.email ?? undefined;
               return (
                 <div key={profile.id} className="flex flex-col gap-4 rounded-xl border p-4 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-3">

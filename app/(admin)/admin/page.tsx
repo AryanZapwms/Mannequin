@@ -1,39 +1,36 @@
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { Product } from "@/lib/db/models/Product";
+import { Order } from "@/lib/db/models/Order";
+import { User } from "@/lib/db/models/User";
+import { BlogPost } from "@/lib/db/models/BlogPost";
+import { ProductReview } from "@/lib/db/models/ProductReview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, Package, ShoppingCart, Users2, Newspaper, Star } from "lucide-react";
 import Link from "next/link";
 
 export default async function AdminDashboardPage() {
-  const supabase = await createClient();
+  await dbConnect();
 
-  const [products, recentOrdersRes, allRevenueRes, users, blogs, reviews] = await Promise.all([
-    supabase.from("products").select("id", { count: "exact", head: true }),
-    // Recent 5 orders for display
-    supabase
-      .from("orders")
-      .select("id, order_number, grand_total, status, placed_at", { count: "exact" })
-      .order("placed_at", { ascending: false })
-      .limit(5),
-    // All orders — only grand_total needed for revenue sum
-    supabase.from("orders").select("grand_total"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("blog_posts").select("id", { count: "exact", head: true }),
-    supabase.from("product_reviews").select("id", { count: "exact", head: true }),
-  ]);
+  const [productCount, recentOrderDocs, totalOrders, allOrders, userCount, blogCount, reviewCount] =
+    await Promise.all([
+      Product.countDocuments(),
+      Order.find().sort({ placedAt: -1 }).limit(5).select("orderNumber grandTotal status placedAt"),
+      Order.countDocuments(),
+      Order.find().select("grandTotal"),
+      User.countDocuments(),
+      BlogPost.countDocuments(),
+      ProductReview.countDocuments(),
+    ]);
 
-  const recentOrders = (recentOrdersRes.data ?? []) as Array<{
-    id: string;
-    order_number: string;
-    grand_total: number;
-    status: string;
-    placed_at: string;
-  }>;
-  const totalOrders = recentOrdersRes.count ?? 0;
-  const totalRevenue = (allRevenueRes.data ?? []).reduce(
-    (sum, row) => sum + (Number(row.grand_total) || 0),
-    0
-  );
+  const recentOrders = recentOrderDocs.map((order) => ({
+    id: order._id.toString(),
+    order_number: order.orderNumber,
+    grand_total: order.grandTotal,
+    status: order.status,
+    placed_at: (order.placedAt ?? new Date()).toString(),
+  }));
+  const totalRevenue = allOrders.reduce((sum, row) => sum + (Number(row.grandTotal) || 0), 0);
 
   return (
     <section className="space-y-8">
@@ -51,7 +48,7 @@ export default async function AdminDashboardPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{products.count ?? 0}</div>
+            <div className="text-2xl font-bold">{productCount}</div>
             <p className="text-xs text-muted-foreground">Published and draft products</p>
           </CardContent>
         </Card>
@@ -71,8 +68,8 @@ export default async function AdminDashboardPage() {
             <Users2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{users.count ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Profiles in Supabase</p>
+            <div className="text-2xl font-bold">{userCount}</div>
+            <p className="text-xs text-muted-foreground">Registered users</p>
           </CardContent>
         </Card>
         <Card>
@@ -81,7 +78,7 @@ export default async function AdminDashboardPage() {
             <Newspaper className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{blogs.count ?? 0}</div>
+            <div className="text-2xl font-bold">{blogCount}</div>
             <p className="text-xs text-muted-foreground">Published and draft articles</p>
           </CardContent>
         </Card>
@@ -91,7 +88,7 @@ export default async function AdminDashboardPage() {
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{reviews.count ?? 0}</div>
+            <div className="text-2xl font-bold">{reviewCount}</div>
             <p className="text-xs text-muted-foreground">Customer feedback awaiting moderation</p>
           </CardContent>
         </Card>

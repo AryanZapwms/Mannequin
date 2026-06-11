@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { User } from "@/lib/db/models/User";
 import { cn } from "@/lib/utils";
 import { AddressManager } from "@/components/address-manager";
 
@@ -13,23 +15,24 @@ export const metadata: Metadata = {
 import Link from "next/link";
 
 export default async function AccountPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const sessionUser = await getCurrentUser();
+
+  if (!sessionUser) {
+    redirect("/auth/login?next=/account");
+  }
+
+  await dbConnect();
+  const user = await User.findById(sessionUser.id);
 
   if (!user) {
     redirect("/auth/login?next=/account");
   }
 
-  const fullName =
-    (user.user_metadata?.full_name as string | undefined) ||
-    (user.user_metadata?.name as string | undefined) ||
-    user.email ||
-    "Account";
-  const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
+  const fullName = user.displayName || user.email || "Account";
+  const avatarUrl = user.avatarUrl ?? undefined;
   const phone = user.phone;
-  const createdAt = user.created_at ? new Date(user.created_at) : null;
+  const createdAt = user.createdAt ? new Date(user.createdAt) : null;
+  const metadata = (user.metadata ?? {}) as Record<string, unknown>;
   const initials = fullName
     .split(" ")
     .map((segment) => segment[0])
@@ -81,7 +84,7 @@ export default async function AccountPage() {
         <dl className="grid gap-3 text-sm text-muted-foreground">
           <div className="grid gap-1">
             <dt className="font-medium text-foreground">User ID</dt>
-            <dd className="break-all">{user.id}</dd>
+            <dd className="break-all">{user._id.toString()}</dd>
           </div>
           <div className="grid gap-1">
             <dt className="font-medium text-foreground">Email</dt>
@@ -93,11 +96,11 @@ export default async function AccountPage() {
               <dd>{phone}</dd>
             </div>
           ) : null}
-          {user.user_metadata && Object.keys(user.user_metadata).length > 0 ? (
+          {Object.keys(metadata).length > 0 ? (
             <div className="grid gap-1">
               <dt className="font-medium text-foreground">Additional metadata</dt>
               <dd className="space-y-1">
-                {Object.entries(user.user_metadata).map(([key, value]) => (
+                {Object.entries(metadata).map(([key, value]) => (
                   <div key={key} className="flex items-start gap-2">
                     <span className="w-32 shrink-0 font-medium capitalize text-foreground">
                       {key.replace(/_/g, " ")}
@@ -123,7 +126,7 @@ export default async function AccountPage() {
         </Link>
       </div>
 
-      <AddressManager userId={user.id} />
+      <AddressManager />
     </section>
   );
 }

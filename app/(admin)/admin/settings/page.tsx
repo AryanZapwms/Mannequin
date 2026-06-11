@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { SiteSetting } from "@/lib/db/models/SiteSetting";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,13 +16,16 @@ async function removeSetting(formData: FormData) {
 }
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("site_settings")
-    .select("id, key, value, description, updated_at")
-    .order("key", { ascending: true });
+  await dbConnect();
+  const settingDocs = await SiteSetting.find().sort({ key: 1 });
 
-  const settings = data ?? [];
+  const settings = settingDocs.map((setting) => ({
+    id: setting._id.toString(),
+    key: setting.key,
+    value: setting.value,
+    description: setting.description ?? null,
+    updated_at: setting.updatedAt ? setting.updatedAt.toISOString() : null,
+  }));
 
   return (
     <section className="grid gap-8 lg:grid-cols-[2fr_1fr]">

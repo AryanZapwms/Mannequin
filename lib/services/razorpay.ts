@@ -73,7 +73,7 @@ export async function fetchPayment(paymentId: string): Promise<any> {
 
 export async function capturePayment(paymentId: string, amount: number): Promise<any> {
   try {
-    return await razorpay.payments.capture(paymentId, Math.round(amount * 100));
+    return await razorpay.payments.capture(paymentId, Math.round(amount * 100), "INR");
   } catch (error) {
     console.error("Razorpay payment capture error:", error);
     throw error;

@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
@@ -7,50 +6,14 @@ import { Star } from "lucide-react";
 import { ProductActions } from "@/components/product-actions";
 import { ProductGallery } from "@/components/product-gallery";
 import type { Metadata } from "next";
+import { getCurrentUser } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { Product } from "@/lib/db/models/Product";
+import { ProductCategory } from "@/lib/db/models/ProductCategory";
+import { ProductReview } from "@/lib/db/models/ProductReview";
+import { WishlistItem } from "@/lib/db/models/WishlistItem";
 
-type ReviewRecord = {
-  id: string;
-  rating: number;
-  title: string | null;
-  body: string | null;
-  admin_response: string | null;
-  created_at: string;
-  user: {
-    id: string;
-    display_name: string | null;
-  } | null;
-};
-
-type UserReviewRecord = {
-  id: string;
-  rating: number;
-  title: string | null;
-  body: string | null;
-};
-
-type ProductRecord = {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  sku: string | null;
-  price: number;
-  compare_at_price: number | null;
-  stock: number | null;
-  thumbnail_url: string | null;
-  main_category_id: string | null;
-  sub_category_id: string | null;
-  main_category: {
-    id: string;
-    name: string;
-    slug: string;
-  } | null;
-  sub_category: {
-    id: string;
-    name: string;
-    slug: string;
-  } | null;
-};
+type CategoryRef = { id: string; name: string; slug: string } | null;
 
 type ListedProduct = {
   id: string;
@@ -61,19 +24,32 @@ type ListedProduct = {
   thumbnail_url: string | null;
 };
 
+function toListedProduct(doc: any): ListedProduct {
+  return {
+    id: doc._id.toString(),
+    name: doc.name,
+    slug: doc.slug,
+    price: doc.price,
+    compare_at_price: doc.compareAtPrice ?? null,
+    thumbnail_url: doc.thumbnailUrl ?? null,
+  };
+}
+
+function toCategoryRef(doc: any): CategoryRef {
+  if (!doc) return null;
+  return { id: doc._id.toString(), name: doc.name, slug: doc.slug };
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("products")
-    .select("name, description, thumbnail_url")
-    .eq("slug", slug)
-    .eq("status", "active")
-    .maybeSingle();
+  await dbConnect();
+  const data = await Product.findOne({ slug, status: "active" }).select(
+    "name description thumbnailUrl",
+  );
 
   if (!data) return { title: "Product Not Found" };
 
@@ -83,7 +59,7 @@ export async function generateMetadata({
     openGraph: {
       title: data.name,
       description: data.description ?? `Buy ${data.name} at Mannequin Care.`,
-      images: data.thumbnail_url ? [data.thumbnail_url] : [],
+      images: data.thumbnailUrl ? [data.thumbnailUrl] : [],
     },
   };
 }
@@ -93,120 +69,112 @@ export default async function ProductDetailPage({
 }: {
   params: Promise<{ slug: string }>
 }) {
-  // Await params in Next.js 15+
   const { slug } = await params;
 
-  const supabase = await createClient();
+  await dbConnect();
 
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  const authUser = await getCurrentUser();
 
-  const { data: productData } = await supabase
-    .from("products")
-    .select(
-      `
-      *,
-      main_category:product_categories!products_main_category_id_fkey(id, name, slug),
-      sub_category:product_categories!products_sub_category_id_fkey(id, name, slug)
-    `,
-    )
-    .eq("slug", slug)
-    .eq("status", "active")
-    .maybeSingle();
+  const productDoc = await Product.findOne({ slug, status: "active" })
+    .populate("mainCategoryId", "name slug")
+    .populate("subCategoryId", "name slug");
 
-  if (!productData) {
+  if (!productDoc) {
     notFound();
   }
 
-  const product = productData as ProductRecord;
+  const product = {
+    id: productDoc._id.toString(),
+    name: productDoc.name,
+    slug: productDoc.slug,
+    description: productDoc.description ?? null,
+    sku: productDoc.sku ?? null,
+    price: productDoc.price,
+    compare_at_price: productDoc.compareAtPrice ?? null,
+    stock: productDoc.stock ?? null,
+    thumbnail_url: productDoc.thumbnailUrl ?? null,
+    main_category_id: productDoc.mainCategoryId
+      ? (productDoc.mainCategoryId as any)._id?.toString() ?? productDoc.mainCategoryId.toString()
+      : null,
+    sub_category_id: productDoc.subCategoryId
+      ? (productDoc.subCategoryId as any)._id?.toString() ?? productDoc.subCategoryId.toString()
+      : null,
+    main_category: toCategoryRef(productDoc.mainCategoryId),
+    sub_category: toCategoryRef(productDoc.subCategoryId),
+  };
 
-  // Fetch product gallery images
-  const { data: galleryData } = await supabase
-    .from("product_media")
-    .select("id, url, alt_text, sort_order")
-    .eq("product_id", product.id)
-    .order("sort_order", { ascending: true });
-
-  const galleryImages = galleryData ?? [];
-
-  // Combine thumbnail + gallery into one unified image list
+  // Combine thumbnail + embedded gallery into one unified image list
+  const galleryImages = [...(productDoc.media ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
   const allImages: { url: string; alt: string }[] = [
     ...(product.thumbnail_url
       ? [{ url: product.thumbnail_url, alt: product.name }]
       : []),
-    ...galleryImages.map((g) => ({ url: g.url, alt: g.alt_text || product.name })),
+    ...galleryImages.map((g) => ({ url: g.url, alt: g.altText || product.name })),
   ];
 
   // Check if product is in the logged-in user's wishlist
   let initialInWishlist = false;
   let initialWishlistItemId: string | null = null;
   if (authUser) {
-    const { data: wishlistRow } = await supabase
-      .from("wishlist_items")
-      .select("id")
-      .eq("user_id", authUser.id)
-      .eq("product_id", product.id)
-      .maybeSingle();
+    const wishlistRow = await WishlistItem.findOne({ userId: authUser.id, productId: productDoc._id });
     if (wishlistRow) {
       initialInWishlist = true;
-      initialWishlistItemId = wishlistRow.id;
+      initialWishlistItemId = wishlistRow._id.toString();
     }
   }
 
-  const reviewsResponse = await supabase
-    .from("product_reviews")
-    .select(
-      `id, rating, title, body, admin_response, created_at, user:profiles(id, display_name)`
-    )
-    .eq("product_id", product.id)
-    .eq("status", "approved")
-    .order("created_at", { ascending: false });
+  const reviewDocs = await ProductReview.find({ productId: productDoc._id, status: "approved" })
+    .populate("userId", "displayName")
+    .sort({ createdAt: -1 });
 
-  const reviews = (reviewsResponse.data ?? []) as ReviewRecord[];
+  const reviews = reviewDocs.map((r) => ({
+    id: r._id.toString(),
+    rating: r.rating,
+    title: r.title ?? null,
+    body: r.body ?? null,
+    admin_response: r.adminResponse ?? null,
+    created_at: (r.createdAt ?? new Date()).toString(),
+    user: r.userId
+      ? { id: (r.userId as any)._id.toString(), display_name: (r.userId as any).displayName ?? null }
+      : null,
+  }));
 
-  const { data: userReviewData } = authUser
-    ? await supabase
-        .from("product_reviews")
-        .select("id, rating, title, body")
-        .eq("product_id", product.id)
-        .eq("user_id", authUser.id)
-        .maybeSingle()
-    : { data: null };
+  const userReviewDoc = authUser
+    ? await ProductReview.findOne({ productId: productDoc._id, userId: authUser.id })
+    : null;
 
-  const userReview = (userReviewData ?? null) as UserReviewRecord | null;
+  const userReview = userReviewDoc
+    ? {
+        id: userReviewDoc._id.toString(),
+        rating: userReviewDoc.rating,
+        title: userReviewDoc.title ?? null,
+        body: userReviewDoc.body ?? null,
+      }
+    : null;
 
-  let relatedQuery = supabase
-    .from("products")
-    .select("*")
-    .eq("status", "active")
-    .neq("id", product.id)
-    .order("created_at", { ascending: false })
-    .limit(4);
+  const relatedFilter: Record<string, unknown> = {
+    status: "active",
+    _id: { $ne: productDoc._id },
+  };
 
   if (product.main_category_id && product.sub_category_id) {
-    relatedQuery = relatedQuery.or(
-      `main_category_id.eq.${product.main_category_id},sub_category_id.eq.${product.sub_category_id}`,
-    );
+    relatedFilter.$or = [
+      { mainCategoryId: product.main_category_id },
+      { subCategoryId: product.sub_category_id },
+    ];
   } else if (product.main_category_id) {
-    relatedQuery = relatedQuery.eq("main_category_id", product.main_category_id);
+    relatedFilter.mainCategoryId = product.main_category_id;
   } else if (product.sub_category_id) {
-    relatedQuery = relatedQuery.eq("sub_category_id", product.sub_category_id);
+    relatedFilter.subCategoryId = product.sub_category_id;
   }
 
-  const { data: relatedProductsData } = await relatedQuery;
-  const relatedProducts = (relatedProductsData ?? []) as ListedProduct[];
+  const relatedDocs = await Product.find(relatedFilter).sort({ createdAt: -1 }).limit(4);
+  const relatedProducts = relatedDocs.map(toListedProduct);
 
-  const { data: suggestedProductsData } = await supabase
-    .from("products")
-    .select("*")
-    .eq("status", "active")
-    .neq("id", product.id)
-    .order("is_featured", { ascending: false })
-    .order("created_at", { ascending: false })
+  const suggestedDocs = await Product.find({ status: "active", _id: { $ne: productDoc._id } })
+    .sort({ isFeatured: -1, createdAt: -1 })
     .limit(4);
-
-  const suggestedProducts = (suggestedProductsData ?? []) as ListedProduct[];
+  const suggestedProducts = suggestedDocs.map(toListedProduct);
 
   const reviewCount = reviews.length;
   const averageRating = reviewCount > 0 ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount : 0;
@@ -219,10 +187,7 @@ export default async function ProductDetailPage({
   async function submitReview(formData: FormData) {
     "use server";
 
-    const supabaseServer = await createClient();
-    const {
-      data: { user },
-    } = await supabaseServer.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       redirect(`/auth/login?next=/products/${product.slug}`);
@@ -236,40 +201,25 @@ export default async function ProductDetailPage({
     const titleValue = (formData.get("title") as string | null) ?? "";
     const bodyValue = (formData.get("body") as string | null) ?? "";
 
-    const { data: existingReview } = await supabaseServer
-      .from("product_reviews")
-      .select("id")
-      .eq("product_id", product.id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    await dbConnect();
+
+    const existingReview = await ProductReview.findOne({ productId: product.id, userId: user.id });
 
     if (existingReview) {
-      const { error } = await supabaseServer
-        .from("product_reviews")
-        .update({
-          rating: ratingValue,
-          title: titleValue.trim() || null,
-          body: bodyValue.trim() || null,
-          status: "approved",
-        })
-        .eq("id", existingReview.id);
-
-      if (error) {
-        throw new Error(error.message);
-      }
+      existingReview.rating = ratingValue;
+      existingReview.title = titleValue.trim() || null;
+      existingReview.body = bodyValue.trim() || null;
+      existingReview.status = "approved";
+      await existingReview.save();
     } else {
-      const { error } = await supabaseServer.from("product_reviews").insert({
+      await ProductReview.create({
         rating: ratingValue,
         title: titleValue.trim() || null,
         body: bodyValue.trim() || null,
-        product_id: product.id,
-        user_id: user.id,
+        productId: product.id,
+        userId: user.id,
         status: "approved",
       });
-
-      if (error) {
-        throw new Error(error.message);
-      }
     }
 
     revalidatePath(`/products/${product.slug}`);

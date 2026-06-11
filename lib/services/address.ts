@@ -1,4 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { dbConnect } from "@/lib/db/connect";
+import { Address as AddressModel } from "@/lib/db/models/Address";
 
 export type AddressType = "billing" | "shipping";
 
@@ -18,139 +19,117 @@ export interface UserAddress {
   updated_at: string;
 }
 
-export async function getAddresses(
-  supabase: SupabaseClient,
-  userId: string,
-  type?: AddressType,
-): Promise<UserAddress[]> {
-  let query = supabase
-    .from("user_addresses")
-    .select("*")
-    .eq("user_id", userId)
-    .order("is_default", { ascending: false })
-    .order("created_at", { ascending: false });
+function toUserAddress(doc: any): UserAddress {
+  return {
+    id: doc._id.toString(),
+    user_id: doc.userId.toString(),
+    type: doc.type,
+    full_name: doc.fullName,
+    phone: doc.phone,
+    street_address: doc.streetAddress,
+    city: doc.city,
+    state: doc.state,
+    postal_code: doc.postalCode,
+    country: doc.country,
+    is_default: doc.isDefault,
+    created_at: (doc.createdAt ?? new Date()).toISOString(),
+    updated_at: (doc.updatedAt ?? new Date()).toISOString(),
+  };
+}
 
-  if (type) {
-    query = query.eq("type", type);
-  }
+export async function getAddresses(userId: string, type?: AddressType): Promise<UserAddress[]> {
+  await dbConnect();
+  const filter: Record<string, unknown> = { userId };
+  if (type) filter.type = type;
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
+  const docs = await AddressModel.find(filter).sort({ isDefault: -1, createdAt: -1 });
+  return docs.map(toUserAddress);
 }
 
 export async function getDefaultAddress(
-  supabase: SupabaseClient,
   userId: string,
   type: AddressType,
 ): Promise<UserAddress | null> {
-  const { data, error } = await supabase
-    .from("user_addresses")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("type", type)
-    .eq("is_default", true)
-    .single();
-
-  if (error) {
-    if (error.code === "PGRST116") {
-      return null;
-    }
-    throw error;
-  }
-  return data;
+  await dbConnect();
+  const doc = await AddressModel.findOne({ userId, type, isDefault: true });
+  return doc ? toUserAddress(doc) : null;
 }
 
 export async function createAddress(
-  supabase: SupabaseClient,
   userId: string,
   address: Omit<UserAddress, "id" | "user_id" | "created_at" | "updated_at">,
 ): Promise<UserAddress> {
+  await dbConnect();
+
   if (address.is_default) {
-    await supabase
-      .from("user_addresses")
-      .update({ is_default: false })
-      .eq("user_id", userId)
-      .eq("type", address.type);
+    await AddressModel.updateMany({ userId, type: address.type }, { isDefault: false });
   }
 
-  const { data, error } = await supabase
-    .from("user_addresses")
-    .insert({ ...address, user_id: userId })
-    .select()
-    .single();
+  const created = await AddressModel.create({
+    userId,
+    type: address.type,
+    fullName: address.full_name,
+    phone: address.phone,
+    streetAddress: address.street_address,
+    city: address.city,
+    state: address.state,
+    postalCode: address.postal_code,
+    country: address.country,
+    isDefault: address.is_default,
+  });
 
-  if (error) throw error;
-  return data;
+  return toUserAddress(created);
 }
 
 export async function updateAddress(
-  supabase: SupabaseClient,
+  userId: string,
   addressId: string,
   updates: Partial<Omit<UserAddress, "id" | "user_id" | "created_at" | "updated_at">>,
 ): Promise<UserAddress> {
-  const { data: address, error: fetchError } = await supabase
-    .from("user_addresses")
-    .select("*")
-    .eq("id", addressId)
-    .single();
+  await dbConnect();
 
-  if (fetchError) throw fetchError;
+  const address = await AddressModel.findOne({ _id: addressId, userId });
+  if (!address) throw new Error("Address not found");
 
-  if (updates.is_default && !address.is_default) {
-    await supabase
-      .from("user_addresses")
-      .update({ is_default: false })
-      .eq("user_id", address.user_id)
-      .eq("type", address.type);
+  if (updates.is_default && !address.isDefault) {
+    await AddressModel.updateMany(
+      { userId: address.userId, type: address.type },
+      { isDefault: false },
+    );
   }
 
-  const { data, error } = await supabase
-    .from("user_addresses")
-    .update(updates)
-    .eq("id", addressId)
-    .select()
-    .single();
+  if (updates.full_name !== undefined) address.fullName = updates.full_name;
+  if (updates.phone !== undefined) address.phone = updates.phone;
+  if (updates.street_address !== undefined) address.streetAddress = updates.street_address;
+  if (updates.city !== undefined) address.city = updates.city;
+  if (updates.state !== undefined) address.state = updates.state;
+  if (updates.postal_code !== undefined) address.postalCode = updates.postal_code;
+  if (updates.country !== undefined) address.country = updates.country;
+  if (updates.is_default !== undefined) address.isDefault = updates.is_default;
+  if (updates.type !== undefined) address.type = updates.type;
 
-  if (error) throw error;
-  return data;
+  await address.save();
+  return toUserAddress(address);
 }
 
-export async function deleteAddress(
-  supabase: SupabaseClient,
-  addressId: string,
-): Promise<void> {
-  const { error } = await supabase.from("user_addresses").delete().eq("id", addressId);
-
-  if (error) throw error;
+export async function deleteAddress(userId: string, addressId: string): Promise<void> {
+  await dbConnect();
+  await AddressModel.findOneAndDelete({ _id: addressId, userId });
 }
 
 export async function setDefaultAddress(
-  supabase: SupabaseClient,
+  userId: string,
   addressId: string,
   type: AddressType,
 ): Promise<UserAddress> {
-  const { data: address, error: fetchError } = await supabase
-    .from("user_addresses")
-    .select("user_id")
-    .eq("id", addressId)
-    .single();
+  await dbConnect();
 
-  if (fetchError) throw fetchError;
+  const address = await AddressModel.findOne({ _id: addressId, userId });
+  if (!address) throw new Error("Address not found");
 
-  await supabase
-    .from("user_addresses")
-    .update({ is_default: false })
-    .eq("user_id", address.user_id)
-    .eq("type", type);
+  await AddressModel.updateMany({ userId: address.userId, type }, { isDefault: false });
 
-  const { data, error } = await supabase
-    .from("user_addresses")
-    .update({ is_default: true })
-    .eq("id", addressId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  address.isDefault = true;
+  await address.save();
+  return toUserAddress(address);
 }

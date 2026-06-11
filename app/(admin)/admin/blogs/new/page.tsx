@@ -54,8 +54,8 @@ export default async function NewBlogPostPage() {
               <Label>Cover image</Label>
               <ImageUpload
                 name="coverImageUrl"
-                bucket="blog-images"
-                folder="covers"
+                publicIdName="coverImagePublicId"
+                folder="blogs/covers"
                 label="Upload Cover"
               />
             </div>

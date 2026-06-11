@@ -32,7 +32,7 @@ export default function RootLayout({
         <ToastProvider />
         <Header />
         <main className="min-h-screen bg-background pt-20 md:pt-24">{children}</main>
-        <Footer/>
+        <Footer />
       </body>
     </html>
   );

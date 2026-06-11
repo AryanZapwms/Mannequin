@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { Product } from "@/lib/db/models/Product";
+import { ProductCategory } from "@/lib/db/models/ProductCategory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,25 +17,40 @@ export default async function EditProductPage({
 
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const [{ data: product }, { data: categories }] = await Promise.all([
-    supabase
-      .from("products")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle(),
-    supabase
-      .from("product_categories")
-      .select("id, name, parent_id")
-      .order("name", { ascending: true }),
+  await dbConnect();
+  const [productDoc, categoryDocs] = await Promise.all([
+    Product.findById(id),
+    ProductCategory.find().sort({ name: 1 }),
   ]);
 
-  if (!product) {
+  if (!productDoc) {
     notFound();
   }
 
-  const mainCategories = (categories ?? []).filter((category) => category.parent_id === null);
-  const subCategories = (categories ?? []).filter((category) => category.parent_id !== null);
+  const product = {
+    id: productDoc._id.toString(),
+    name: productDoc.name,
+    slug: productDoc.slug,
+    description: productDoc.description ?? null,
+    sku: productDoc.sku ?? null,
+    price: productDoc.price,
+    compare_at_price: productDoc.compareAtPrice ?? null,
+    stock: productDoc.stock,
+    main_category_id: productDoc.mainCategoryId ? productDoc.mainCategoryId.toString() : "",
+    sub_category_id: productDoc.subCategoryId ? productDoc.subCategoryId.toString() : "",
+    status: productDoc.status,
+    is_featured: productDoc.isFeatured,
+    thumbnail_url: productDoc.thumbnailUrl ?? null,
+  };
+
+  const categories = categoryDocs.map((c) => ({
+    id: c._id.toString(),
+    name: c.name,
+    parent_id: c.parentId ? c.parentId.toString() : null,
+  }));
+
+  const mainCategories = categories.filter((category) => category.parent_id === null);
+  const subCategories = categories.filter((category) => category.parent_id !== null);
 
   async function handleSubmit(formData: FormData) {
     "use server";
@@ -141,9 +158,11 @@ export default async function EditProductPage({
               <Label>Thumbnail</Label>
               <ImageUpload
                 name="thumbnailUrl"
+                publicIdName="thumbnailPublicId"
                 defaultValue={product.thumbnail_url ?? ""}
-                bucket="product-images"
-                folder="thumbnails"
+                folder="products/thumbnails"
+                ownerType="product"
+                ownerId={product.id}
                 label="Upload Thumbnail"
               />
             </div>

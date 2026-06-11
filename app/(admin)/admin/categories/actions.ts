@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { ProductCategory } from "@/lib/db/models/ProductCategory";
 
 const slugify = (input: string) =>
   input
@@ -21,51 +23,18 @@ export async function createCategory(formData: FormData) {
     throw new Error("Category name is required");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login?next=/admin/categories");
-  }
-
-  // SELF-UPGRADE: Ensure the user's role in the database is 'admin' to satisfy RLS
-  const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  console.log("Current profile in DB:", profile, "Error:", profileError);
-
-  if (!profile) {
-    console.log("Profile is completely missing! Trigger might have failed.");
-    // We cannot insert due to RLS, but we will throw a clearer error
-    throw new Error("Your user profile is missing in the database. Please contact support.");
-  } else if (profile.role !== 'admin') {
-    console.log("Upgrading profile role from", profile.role, "to admin...");
-    const { error: upgradeError } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
-    if (upgradeError) {
-      console.error("Failed to upgrade role:", upgradeError);
-      throw new Error("Failed to upgrade your role to Admin: " + upgradeError.message);
-    }
-    console.log("Successfully upgraded role!");
-  }
-
-  // TEST RPC is_admin
-  const { data: rpcAdmin, error: rpcError } = await supabase.rpc('is_admin');
-  console.log("RPC is_admin() result:", rpcAdmin, "Error:", rpcError);
+  const user = await requireStaff();
 
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(name);
 
-  const { error } = await supabase.from("product_categories").insert({
+  await dbConnect();
+  await ProductCategory.create({
     name: name.trim(),
     description: description.trim() || null,
     slug,
-    parent_id: parentId,
-    created_by: user.id,
+    parentId,
+    createdBy: user.id,
   });
-
-  if (error) {
-    console.error("Insert error details:", error);
-    throw new Error(error.message);
-  }
 
   revalidatePath("/admin/categories");
 }
@@ -81,30 +50,18 @@ export async function updateCategory(categoryId: string, formData: FormData) {
   }
 
   const parentId = parentIdInput === categoryId ? null : parentIdInput;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/categories");
-  }
+  await requireStaff();
 
   const slug = slugInput.trim() ? slugify(slugInput) : slugify(name);
 
-  const { error } = await supabase
-    .from("product_categories")
-    .update({
-      name: name.trim(),
-      description: description.trim() || null,
-      slug,
-      parent_id: parentId,
-    })
-    .eq("id", categoryId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await dbConnect();
+  await ProductCategory.findByIdAndUpdate(categoryId, {
+    name: name.trim(),
+    description: description.trim() || null,
+    slug,
+    parentId,
+  });
 
   revalidatePath(`/admin/categories/${categoryId}`);
   revalidatePath("/admin/categories");
@@ -112,23 +69,10 @@ export async function updateCategory(categoryId: string, formData: FormData) {
 }
 
 export async function deleteCategory(categoryId: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await requireStaff();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/categories");
-  }
-
-  const { error } = await supabase
-    .from("product_categories")
-    .delete()
-    .eq("id", categoryId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await dbConnect();
+  await ProductCategory.findByIdAndDelete(categoryId);
 
   revalidatePath("/admin/categories");
 }

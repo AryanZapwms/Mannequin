@@ -3,17 +3,28 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
+type UploadFolder = "products/thumbnails" | "products/media" | "blogs/covers";
+type OwnerType = "product" | "blog";
 
 interface ImageUploadProps {
   /** The form field name for the final URL (hidden input) */
   name: string;
+  /** The form field name for the Cloudinary public ID (hidden input) */
+  publicIdName: string;
   /** Existing URL to show on load */
   defaultValue?: string | null;
-  /** Supabase Storage bucket name */
-  bucket?: string;
-  /** Folder path inside the bucket */
-  folder?: string;
+  /** Existing Cloudinary public ID, if editing an existing record */
+  defaultPublicId?: string | null;
+  /** Cloudinary destination folder (must be one of the allow-listed upload destinations) */
+  folder: UploadFolder;
+  /**
+   * The owning record's type + Mongo _id — required to delete the previous image
+   * from Cloudinary when editing an existing Product/BlogPost. Omit for "new" forms
+   * where the record doesn't exist yet (nothing to delete server-side).
+   */
+  ownerType?: OwnerType;
+  ownerId?: string;
   /** Max file size in MB */
   maxMb?: number;
   label?: string;
@@ -21,15 +32,18 @@ interface ImageUploadProps {
 
 export function ImageUpload({
   name,
+  publicIdName,
   defaultValue,
-  bucket = "product-images",
-  folder = "uploads",
+  defaultPublicId,
+  folder,
+  ownerType,
+  ownerId,
   maxMb = 5,
   label = "Upload Image",
 }: ImageUploadProps) {
-  const supabase = createClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState<string>(defaultValue ?? "");
+  const [publicId, setPublicId] = useState<string>(defaultPublicId ?? "");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,36 +67,62 @@ export function ImageUpload({
     setUploading(true);
 
     try {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const previousUrl = url;
+      const previousPublicId = publicId;
 
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file, { upsert: false, contentType: file.type });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", folder);
 
-      if (uploadError) throw uploadError;
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
 
-      const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-      setUrl(data.publicUrl);
-    } catch (err: any) {
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Upload failed. Please try again.");
+      }
+
+      setUrl(data.url);
+      setPublicId(data.publicId);
+
+      // Replacing an existing image on a saved record — clean up the old asset.
+      if (previousUrl && previousPublicId && ownerType && ownerId) {
+        await deleteFromCloudinary(previousPublicId, ownerType, ownerId);
+      }
+    } catch (err: unknown) {
       console.error("Upload error:", err);
-      setError(err?.message ?? "Upload failed. Please try again.");
+      setError(err instanceof Error ? err.message : "Upload failed. Please try again.");
     } finally {
       setUploading(false);
-      // Reset file input
       if (inputRef.current) inputRef.current.value = "";
     }
   };
 
-  const handleRemove = () => {
+  const deleteFromCloudinary = async (idToDelete: string, type: OwnerType, recordId: string) => {
+    try {
+      await fetch("/api/upload", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicId: idToDelete, ownerType: type, ownerId: recordId }),
+      });
+    } catch (err) {
+      console.error("Failed to delete previous image from Cloudinary:", err);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (url && publicId && ownerType && ownerId) {
+      await deleteFromCloudinary(publicId, ownerType, ownerId);
+    }
     setUrl("");
+    setPublicId("");
     setError(null);
   };
 
   return (
     <div className="space-y-2">
-      {/* Hidden input carries the URL to the form */}
+      {/* Hidden inputs carry the URL and Cloudinary public ID to the form */}
       <input type="hidden" name={name} value={url} />
+      <input type="hidden" name={publicIdName} value={publicId} />
 
       {url ? (
         <div className="group relative inline-block">

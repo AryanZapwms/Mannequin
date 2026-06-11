@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { BlogPost } from "@/lib/db/models/BlogPost";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { deletePost } from "./actions";
@@ -22,15 +23,23 @@ export default async function BlogsPage({ searchParams }: { searchParams: any })
   const currentPage = Math.max(1, parseInt(sp?.page ?? "1", 10) || 1);
   const offset = (currentPage - 1) * PAGE_SIZE;
 
-  const supabase = await createClient();
-  const { data, count } = await supabase
-    .from("blog_posts")
-    .select("id, title, slug, status, published_at, updated_at", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
+  await dbConnect();
+  const [postDocs, total] = await Promise.all([
+    BlogPost.find()
+      .select("title slug status publishedAt updatedAt")
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(PAGE_SIZE),
+    BlogPost.countDocuments(),
+  ]);
 
-  const posts = data ?? [];
-  const total = count ?? 0;
+  const posts = postDocs.map((post) => ({
+    id: post._id.toString(),
+    title: post.title,
+    slug: post.slug,
+    status: post.status,
+    published_at: post.publishedAt ? post.publishedAt.toISOString() : null,
+  }));
 
   return (
     <section className="space-y-6">

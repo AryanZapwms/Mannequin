@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { ProductCategory } from "@/lib/db/models/ProductCategory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,13 +18,16 @@ async function removeCategory(formData: FormData) {
 }
 
 export default async function CategoriesPage() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("product_categories")
-    .select("id, name, slug, description, parent_id")
-    .order("name", { ascending: true });
+  await dbConnect();
+  const categoryDocs = await ProductCategory.find().sort({ name: 1 });
 
-  const categories = data ?? [];
+  const categories = categoryDocs.map((c) => ({
+    id: c._id.toString(),
+    name: c.name,
+    slug: c.slug,
+    description: c.description ?? null,
+    parent_id: c.parentId ? c.parentId.toString() : null,
+  }));
   const mainCategories = categories.filter((category) => category.parent_id === null);
   const subCategoriesByParent = categories.reduce<Record<string, typeof categories>>((acc, category) => {
     if (!category.parent_id) return acc;

@@ -3,16 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { getSessionUser } from "@/lib/auth-client";
 import type { CartItem } from "@/lib/services/cart";
-import { getCartItems, removeFromCart, updateCartQuantity } from "@/lib/services/cart";
 import type { GuestCartItem } from "@/lib/services/guest-cart";
 import { getGuestCart, removeFromGuestCart, updateGuestCartQuantity } from "@/lib/services/guest-cart";
 import { CartItemRow } from "@/components/cart-item-row";
 import { ShoppingBag } from "lucide-react";
 
 export default function CartPage() {
-  const supabase = createClient();
   const [items, setItems] = useState<(CartItem | GuestCartItem)[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -21,14 +19,15 @@ export default function CartPage() {
 
   useEffect(() => {
     const loadCart = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
+      const user = await getSessionUser();
+
       if (user) {
         setUserId(user.id);
         setIsGuest(false);
         try {
-          const cartItems = await getCartItems(supabase, user.id);
-          setItems(cartItems);
+          const res = await fetch("/api/cart");
+          const { items: cartItems } = await res.json();
+          setItems(cartItems ?? []);
         } catch (error) {
           console.error("Error loading cart:", error);
         }
@@ -41,7 +40,7 @@ export default function CartPage() {
     };
 
     void loadCart();
-  }, [supabase]);
+  }, []);
 
   const handleUpdateQuantity = (itemId: string, quantity: number) => {
     try {
@@ -52,10 +51,16 @@ export default function CartPage() {
       } else if (userId) {
         startTransition(async () => {
           try {
-            await updateCartQuantity(supabase, itemId, quantity);
-            setItems(items.map(item => 
-              item.id === itemId ? { ...item, quantity } : item
-            ));
+            const res = await fetch(`/api/cart/${itemId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ quantity }),
+            });
+            if (!res.ok) throw new Error("Failed to update quantity");
+            setItems(items.map(item => {
+              const currentItemId = "id" in item ? item.id : item.product_id;
+              return currentItemId === itemId ? { ...item, quantity } : item;
+            }));
           } catch (error) {
             console.error("Error updating quantity:", error);
             toast.error("Failed to update quantity");
@@ -78,8 +83,12 @@ export default function CartPage() {
       } else if (userId) {
         startTransition(async () => {
           try {
-            await removeFromCart(supabase, itemId);
-            setItems(items.filter(item => item.id !== itemId));
+            const res = await fetch(`/api/cart/${itemId}`, { method: "DELETE" });
+            if (!res.ok) throw new Error("Failed to remove item");
+            setItems(items.filter(item => {
+              const currentItemId = "id" in item ? item.id : item.product_id;
+              return currentItemId !== itemId;
+            }));
             toast.success("Item removed from cart");
           } catch (error) {
             console.error("Error removing item:", error);
@@ -127,14 +136,17 @@ export default function CartPage() {
         <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
           <div className="rounded-lg border border-gray-200 bg-white p-6">
             <div className="space-y-4">
-              {items.map((item) => (
-                <CartItemRow
-                  key={item.id}
-                  item={item}
-                  onUpdate={handleUpdateQuantity}
-                  onRemove={handleRemoveItem}
-                />
-              ))}
+              {items.map((item) => {
+                const currentItemId = "id" in item ? item.id : item.product_id;
+                return (
+                  <CartItemRow
+                    key={currentItemId}
+                    item={item}
+                    onUpdate={handleUpdateQuantity}
+                    onRemove={handleRemoveItem}
+                  />
+                );
+              })}
             </div>
           </div>
 

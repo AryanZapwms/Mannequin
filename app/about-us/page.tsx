@@ -51,7 +51,7 @@ const team = [
 
 export default function AboutUsPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white -mt-20 md:-mt-24">
       {/* Hero */}
       <section className="relative overflow-hidden bg-amber-50 py-20 md:py-28">
         <div className="container mx-auto max-w-6xl px-4">

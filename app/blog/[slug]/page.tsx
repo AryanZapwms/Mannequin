@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { dbConnect } from "@/lib/db/connect";
+import { BlogPost } from "@/lib/db/models/BlogPost";
 import { ArrowLeft, Calendar, Clock, Tag } from "lucide-react";
 
 export async function generateMetadata({
@@ -11,13 +12,10 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("blog_posts")
-    .select("title, excerpt, cover_image_url")
-    .eq("slug", slug)
-    .eq("status", "published")
-    .maybeSingle();
+  await dbConnect();
+  const data = await BlogPost.findOne({ slug, status: "published" }).select(
+    "title excerpt coverImageUrl",
+  );
 
   if (!data) return { title: "Post Not Found" };
 
@@ -27,7 +25,7 @@ export async function generateMetadata({
     openGraph: {
       title: data.title,
       description: data.excerpt ?? data.title,
-      images: data.cover_image_url ? [data.cover_image_url] : [],
+      images: data.coverImageUrl ? [data.coverImageUrl] : [],
     },
   };
 }
@@ -54,30 +52,48 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
+  await dbConnect();
 
-  const { data: post } = await supabase
-    .from("blog_posts")
-    .select(
-      "id, title, slug, excerpt, content, cover_image_url, published_at, tags, author:author_id(display_name, avatar_url)"
-    )
-    .eq("slug", slug)
-    .eq("status", "published")
-    .maybeSingle();
+  const postDoc = await BlogPost.findOne({ slug, status: "published" }).populate(
+    "authorId",
+    "displayName avatarUrl",
+  );
 
-  if (!post) notFound();
+  if (!postDoc) notFound();
 
-  // Fetch related posts (same tags or recent)
-  const { data: related } = await supabase
-    .from("blog_posts")
-    .select("id, title, slug, excerpt, cover_image_url, published_at")
-    .eq("status", "published")
-    .neq("slug", slug)
-    .order("published_at", { ascending: false })
+  const post = {
+    id: postDoc._id.toString(),
+    title: postDoc.title,
+    slug: postDoc.slug,
+    excerpt: postDoc.excerpt ?? null,
+    content: postDoc.content ?? null,
+    cover_image_url: postDoc.coverImageUrl ?? null,
+    published_at: postDoc.publishedAt ? postDoc.publishedAt.toISOString() : null,
+    tags: postDoc.tags ?? [],
+  };
+
+  const author = postDoc.authorId
+    ? {
+        display_name: (postDoc.authorId as any).displayName ?? null,
+        avatar_url: (postDoc.authorId as any).avatarUrl ?? null,
+      }
+    : null;
+
+  // Fetch related posts (most recent, excluding this one)
+  const relatedDocs = await BlogPost.find({ status: "published", slug: { $ne: slug } })
+    .sort({ publishedAt: -1 })
     .limit(3);
 
-  const author = post.author as { display_name: string | null; avatar_url: string | null } | null;
-  const tags = post.tags as string[] | null;
+  const related = relatedDocs.map((rp) => ({
+    id: rp._id.toString(),
+    title: rp.title,
+    slug: rp.slug,
+    excerpt: rp.excerpt ?? null,
+    cover_image_url: rp.coverImageUrl ?? null,
+    published_at: rp.publishedAt ? rp.publishedAt.toISOString() : null,
+  }));
+
+  const tags = post.tags;
 
   return (
     <div className="min-h-screen bg-white">
@@ -107,7 +123,7 @@ export default async function BlogPostPage({
         </Link>
 
         {/* Tags */}
-        {tags?.length ? (
+        {tags.length ? (
           <div className="mb-4 flex flex-wrap gap-2">
             {tags.map((tag) => (
               <span
@@ -168,12 +184,12 @@ export default async function BlogPostPage({
       </article>
 
       {/* Related Posts */}
-      {(related ?? []).length > 0 && (
+      {related.length > 0 && (
         <section className="border-t border-gray-100 bg-gray-50 py-16">
           <div className="container mx-auto max-w-6xl px-4">
             <h2 className="mb-8 text-2xl font-bold text-gray-900">More Articles</h2>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {(related ?? []).map((rp) => (
+              {related.map((rp) => (
                 <Link
                   key={rp.id}
                   href={`/blog/${rp.slug}`}

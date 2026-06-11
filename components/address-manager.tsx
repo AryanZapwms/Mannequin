@@ -1,29 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import type { UserAddress } from "@/lib/services/address";
-import {
-  getAddresses,
-  createAddress,
-  updateAddress,
-  deleteAddress,
-  setDefaultAddress,
-} from "@/lib/services/address";
 import { Plus, Trash2, Star } from "lucide-react";
 
-interface AddressManagerProps {
-  userId: string;
+async function fetchAddresses(): Promise<UserAddress[]> {
+  const res = await fetch("/api/addresses");
+  if (!res.ok) throw new Error("Failed to load addresses");
+  const { addresses } = await res.json();
+  return addresses ?? [];
 }
 
-export function AddressManager({ userId }: AddressManagerProps) {
-  const supabase = createClient();
+export function AddressManager() {
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    type: "shipping" as const,
+    type: "shipping" as "shipping" | "billing",
     full_name: "",
     phone: "",
     street_address: "",
@@ -36,8 +30,7 @@ export function AddressManager({ userId }: AddressManagerProps) {
   useEffect(() => {
     const loadAddresses = async () => {
       try {
-        const allAddresses = await getAddresses(supabase, userId);
-        setAddresses(allAddresses);
+        setAddresses(await fetchAddresses());
       } catch (error) {
         console.error("Error loading addresses:", error);
       } finally {
@@ -46,36 +39,48 @@ export function AddressManager({ userId }: AddressManagerProps) {
     };
 
     void loadAddresses();
-  }, [supabase, userId]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       if (editingId) {
-        const updated = await updateAddress(supabase, editingId, {
-          full_name: formData.full_name,
-          phone: formData.phone,
-          street_address: formData.street_address,
-          city: formData.city,
-          state: formData.state,
-          postal_code: formData.postal_code,
-          is_default: formData.is_default,
+        const res = await fetch(`/api/addresses/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            full_name: formData.full_name,
+            phone: formData.phone,
+            street_address: formData.street_address,
+            city: formData.city,
+            state: formData.state,
+            postal_code: formData.postal_code,
+            is_default: formData.is_default,
+          }),
         });
+        if (!res.ok) throw new Error("Failed to update address");
+        const { address: updated } = await res.json();
         setAddresses(addresses.map((a) => (a.id === editingId ? updated : a)));
         setEditingId(null);
       } else {
-        const created = await createAddress(supabase, userId, {
-          type: formData.type,
-          full_name: formData.full_name,
-          phone: formData.phone,
-          street_address: formData.street_address,
-          city: formData.city,
-          state: formData.state,
-          postal_code: formData.postal_code,
-          country: "India",
-          is_default: formData.is_default,
+        const res = await fetch("/api/addresses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: formData.type,
+            full_name: formData.full_name,
+            phone: formData.phone,
+            street_address: formData.street_address,
+            city: formData.city,
+            state: formData.state,
+            postal_code: formData.postal_code,
+            country: "India",
+            is_default: formData.is_default,
+          }),
         });
+        if (!res.ok) throw new Error("Failed to create address");
+        const { address: created } = await res.json();
         setAddresses([...addresses, created]);
       }
 
@@ -100,7 +105,8 @@ export function AddressManager({ userId }: AddressManagerProps) {
     if (!confirm("Are you sure you want to delete this address?")) return;
 
     try {
-      await deleteAddress(supabase, addressId);
+      const res = await fetch(`/api/addresses/${addressId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete address");
       setAddresses(addresses.filter((a) => a.id !== addressId));
     } catch (error) {
       console.error("Error deleting address:", error);
@@ -125,9 +131,13 @@ export function AddressManager({ userId }: AddressManagerProps) {
 
   const handleSetDefault = async (addressId: string, type: "shipping" | "billing") => {
     try {
-      await setDefaultAddress(supabase, addressId, type);
-      const updated = await getAddresses(supabase, userId);
-      setAddresses(updated);
+      const res = await fetch(`/api/addresses/${addressId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-default", type }),
+      });
+      if (!res.ok) throw new Error("Failed to set default address");
+      setAddresses(await fetchAddresses());
     } catch (error) {
       console.error("Error setting default address:", error);
       alert("Failed to set default address");

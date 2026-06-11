@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/auth-helpers";
+import { dbConnect } from "@/lib/db/connect";
+import { Order } from "@/lib/db/models/Order";
+import { User } from "@/lib/db/models/User";
 import { sendOrderStatusUpdateEmail } from "@/lib/services/email";
 
 export async function updateOrderStatus(formData: FormData) {
@@ -18,75 +20,49 @@ export async function updateOrderStatus(formData: FormData) {
     throw new Error("Status and payment status are required");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await requireStaff();
 
-  if (!user) {
-    redirect("/auth/login?next=/admin/orders");
-  }
+  await dbConnect();
 
   // First, get the current order details before updating
-  const { data: currentOrder, error: fetchError } = await supabase
-    .from("orders")
-    .select(`
-      *,
-      items:order_items(*, product_snapshot)
-    `)
-    .eq("id", orderId)
-    .single();
-
-  if (fetchError) {
-    console.error("Error fetching order:", fetchError);
-    throw new Error(`Failed to fetch order: ${fetchError.message}`);
+  const currentOrder = await Order.findById(orderId);
+  if (!currentOrder) {
+    throw new Error("Failed to fetch order: order not found");
   }
+
+  const previousStatus = currentOrder.status;
 
   // Update the order status
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      status,
-      payment_status: paymentStatus,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId);
-
-  if (error) {
-    console.error("Error updating order status:", error);
-    throw new Error(`Failed to update order: ${error.message}`);
-  }
+  currentOrder.status = status as typeof currentOrder.status;
+  currentOrder.paymentStatus = paymentStatus as typeof currentOrder.paymentStatus;
+  await currentOrder.save();
 
   // Send email notification to customer if status changed
-  if (currentOrder.status !== status) {
+  if (previousStatus !== status) {
     try {
-      // Get customer profile information
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name, phone, email: metadata->email")
-        .eq("id", currentOrder.user_id)
-        .single();
+      const customer = currentOrder.userId
+        ? await User.findById(currentOrder.userId).select("displayName phone email")
+        : null;
 
-      const customerEmail = profile?.email || "";
-      const customerName = profile?.display_name || "Valued Customer";
+      const customerEmail = customer?.email || currentOrder.shippingAddress?.email || "";
+      const customerName = customer?.displayName || "Valued Customer";
 
       if (customerEmail) {
-        // Prepare order data for email
-        const orderItems = (currentOrder.items || []).map((item: any) => ({
-          name: item.product_snapshot?.name || "Unknown Product",
+        const orderItems = (currentOrder.items || []).map((item) => ({
+          name: (item.productSnapshot as any)?.name || "Unknown Product",
           quantity: item.quantity,
-          price: item.unit_price,
+          price: item.unitPrice,
         }));
 
-        const shippingAddress = currentOrder.shipping_address as any;
+        const shippingAddress = currentOrder.shippingAddress as any;
 
         await sendOrderStatusUpdateEmail(customerEmail, {
-          orderNumber: currentOrder.order_number || currentOrder.id.slice(0, 8),
+          orderNumber: currentOrder.orderNumber || currentOrder._id.toString().slice(0, 8),
           customerName,
           status,
           paymentStatus,
           items: orderItems,
-          total: currentOrder.grand_total,
+          total: currentOrder.grandTotal,
           shippingAddress: {
             fullName: shippingAddress?.full_name || "",
             streetAddress: shippingAddress?.street_address || "",

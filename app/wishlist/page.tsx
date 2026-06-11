@@ -4,27 +4,25 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { getSessionUser } from "@/lib/auth-client";
 import type { WishlistItem } from "@/lib/services/wishlist";
-import { getWishlistItems, removeFromWishlist } from "@/lib/services/wishlist";
-import { addToCart } from "@/lib/services/cart";
 import { Heart, ShoppingCart } from "lucide-react";
 
 export default function WishlistPage() {
-  const supabase = createClient();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadWishlist = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
+      const user = await getSessionUser();
+
       if (user) {
         setUserId(user.id);
         try {
-          const wishlistItems = await getWishlistItems(supabase, user.id);
-          setItems(wishlistItems);
+          const res = await fetch("/api/wishlist");
+          const { items: wishlistItems } = await res.json();
+          setItems(wishlistItems ?? []);
         } catch (error) {
           console.error("Error loading wishlist:", error);
         }
@@ -33,11 +31,12 @@ export default function WishlistPage() {
     };
 
     void loadWishlist();
-  }, [supabase]);
+  }, []);
 
   const handleRemoveItem = async (itemId: string) => {
     try {
-      await removeFromWishlist(supabase, itemId);
+      const res = await fetch(`/api/wishlist/${itemId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove from wishlist");
       setItems(items.filter(item => item.id !== itemId));
       toast.success("Removed from wishlist");
     } catch (error) {
@@ -49,7 +48,12 @@ export default function WishlistPage() {
   const handleAddToCart = async (item: WishlistItem) => {
     if (!userId) return;
     try {
-      await addToCart(supabase, userId, item.product_id, 1);
+      const res = await fetch("/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: item.product_id, quantity: 1 }),
+      });
+      if (!res.ok) throw new Error("Failed to add to cart");
       toast.success("Added to cart!");
     } catch (error) {
       console.error("Error adding to cart:", error);

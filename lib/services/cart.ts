@@ -1,4 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { dbConnect } from "@/lib/db/connect";
+import { CartItem as CartItemModel } from "@/lib/db/models/CartItem";
+import "@/lib/db/models/Product";
 
 export interface CartItem {
   id: string;
@@ -15,127 +17,104 @@ export interface CartItem {
   };
 }
 
-export async function getCartItems(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<CartItem[]> {
-  const { data, error } = await supabase
-    .from("cart_items")
-    .select(
-      `
-      id,
-      user_id,
-      product_id,
-      quantity,
-      created_at,
-      product:product_id(id, name, price, thumbnail_url, stock)
-    `,
-    )
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+interface PopulatedProduct {
+  _id: { toString(): string };
+  name: string;
+  price: number;
+  thumbnailUrl?: string | null;
+  stock: number;
+}
 
-  if (error) throw error;
-  return data || [];
+function toCartItem(doc: any): CartItem {
+  const product = doc.productId as PopulatedProduct | null | undefined;
+  return {
+    id: doc._id.toString(),
+    user_id: doc.userId.toString(),
+    product_id: product?._id ? product._id.toString() : doc.productId.toString(),
+    quantity: doc.quantity,
+    created_at: (doc.createdAt ?? new Date()).toISOString(),
+    product: product?._id
+      ? {
+          id: product._id.toString(),
+          name: product.name,
+          price: product.price,
+          thumbnail_url: product.thumbnailUrl ?? undefined,
+          stock: product.stock,
+        }
+      : undefined,
+  };
+}
+
+export async function getCartItems(userId: string): Promise<CartItem[]> {
+  await dbConnect();
+  const docs = await CartItemModel.find({ userId })
+    .populate("productId", "name price thumbnailUrl stock")
+    .sort({ createdAt: -1 });
+  return docs.map(toCartItem);
 }
 
 export async function addToCart(
-  supabase: SupabaseClient,
   userId: string,
   productId: string,
   quantity: number = 1,
 ): Promise<CartItem> {
-  const { data: existingItem } = await supabase
-    .from("cart_items")
-    .select("id, quantity")
-    .eq("user_id", userId)
-    .eq("product_id", productId)
-    .single();
+  await dbConnect();
 
-  if (existingItem) {
-    const { data, error } = await supabase
-      .from("cart_items")
-      .update({ quantity: existingItem.quantity + quantity })
-      .eq("id", existingItem.id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+  const existing = await CartItemModel.findOne({ userId, productId });
+  if (existing) {
+    existing.quantity += quantity;
+    await existing.save();
+    await existing.populate("productId", "name price thumbnailUrl stock");
+    return toCartItem(existing);
   }
 
-  const { data, error } = await supabase
-    .from("cart_items")
-    .insert({ user_id: userId, product_id: productId, quantity })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  const created = await CartItemModel.create({ userId, productId, quantity });
+  await created.populate("productId", "name price thumbnailUrl stock");
+  return toCartItem(created);
 }
 
 export async function updateCartQuantity(
-  supabase: SupabaseClient,
+  userId: string,
   cartItemId: string,
   quantity: number,
 ): Promise<CartItem> {
   if (quantity <= 0) {
-    return removeFromCart(supabase, cartItemId);
+    return removeFromCart(userId, cartItemId);
   }
 
-  const { data, error } = await supabase
-    .from("cart_items")
-    .update({ quantity })
-    .eq("id", cartItemId)
-    .select()
-    .single();
+  await dbConnect();
+  const updated = await CartItemModel.findOneAndUpdate(
+    { _id: cartItemId, userId },
+    { quantity },
+    { new: true },
+  ).populate("productId", "name price thumbnailUrl stock");
 
-  if (error) throw error;
-  return data;
+  if (!updated) throw new Error("Cart item not found");
+  return toCartItem(updated);
 }
 
-export async function removeFromCart(
-  supabase: SupabaseClient,
-  cartItemId: string,
-): Promise<CartItem> {
-  const { data, error } = await supabase
-    .from("cart_items")
-    .delete()
-    .eq("id", cartItemId)
-    .select()
-    .single();
+export async function removeFromCart(userId: string, cartItemId: string): Promise<CartItem> {
+  await dbConnect();
+  const removed = await CartItemModel.findOneAndDelete({ _id: cartItemId, userId }).populate(
+    "productId",
+    "name price thumbnailUrl stock",
+  );
 
-  if (error) throw error;
-  return data;
+  if (!removed) throw new Error("Cart item not found");
+  return toCartItem(removed);
 }
 
-export async function clearCart(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<void> {
-  const { error } = await supabase
-    .from("cart_items")
-    .delete()
-    .eq("user_id", userId);
-
-  if (error) throw error;
+export async function clearCart(userId: string): Promise<void> {
+  await dbConnect();
+  await CartItemModel.deleteMany({ userId });
 }
 
-export async function getCartTotal(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<number> {
-  const items = await getCartItems(supabase, userId);
+export async function getCartTotal(userId: string): Promise<number> {
+  const items = await getCartItems(userId);
   return items.reduce((total, item) => total + (item.product?.price || 0) * item.quantity, 0);
 }
 
-export async function getCartCount(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<number> {
-  const { count, error } = await supabase
-    .from("cart_items")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId);
-
-  if (error) throw error;
-  return count || 0;
+export async function getCartCount(userId: string): Promise<number> {
+  await dbConnect();
+  return CartItemModel.countDocuments({ userId });
 }
