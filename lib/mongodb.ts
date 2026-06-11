@@ -19,7 +19,7 @@ const globalForMongo = globalThis as typeof globalThis & {
   _mongoClientPromise?: Promise<MongoClient>;
 };
 
-const uri = process.env.MONGODB_URI;
+const uri = process.env.MONGODB_URI as string;
 
 if (!uri) {
   throw new Error("MONGODB_URI must be set");
