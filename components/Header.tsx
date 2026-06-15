@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
@@ -23,7 +21,6 @@ import {
   LogIn,
   LogOut,
   Menu,
-  Search,
   Settings,
   ShoppingBag,
   User,
@@ -33,7 +30,9 @@ import {
 const NAV_LINKS = [
   { href: "/about-us", label: "About Us" },
   { href: "/shop", label: "Shop" },
+  { href: "/brochure", label: "Brochure" },
   { href: "/contact-us", label: "Contact Us" },
+  { href: "/blog", label: "Blogs" },
 ];
 
 type NavItemProps = {
@@ -49,19 +48,33 @@ function NavItem({ href, label, isActive, onNavigate }: NavItemProps) {
       href={href}
       onClick={onNavigate}
       className={cn(
-        "relative text-sm font-medium transition-colors",
-        isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        "group relative font-sub text-[13px] font-medium uppercase tracking-[0.08em] transition-colors duration-200",
+        isActive ? "text-brand-copper" : "text-brand-espresso hover:text-brand-copper",
       )}
     >
       {label}
       <span
         aria-hidden
         className={cn(
-          "absolute -bottom-2 left-0 h-0.5 w-full origin-left scale-x-0 bg-foreground transition-transform duration-200",
+          "pointer-events-none absolute -bottom-1.5 left-0 h-px w-full origin-left scale-x-0 bg-brand-copper transition-transform duration-[250ms] ease-out group-hover:scale-x-100",
           isActive && "scale-x-100",
         )}
       />
     </Link>
+  );
+}
+
+/** Brand logo — sourced from /public/logo.jpg, blended onto the cream header background. */
+function Logo({ className }: { className?: string }) {
+  return (
+    <Image
+      src="/logo.jpg"
+      alt="Mannequin Care"
+      width={1157}
+      height={314}
+      priority
+      className={cn("h-7 w-auto object-contain mix-blend-multiply md:h-9", className)}
+    />
   );
 }
 
@@ -75,10 +88,10 @@ type IconButtonProps = {
 
 function IconButton({ label, icon, href, onClick, badgeCount }: IconButtonProps) {
   const content = (
-    <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+    <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-espresso transition-colors duration-200 hover:bg-brand-gold-100 hover:text-brand-copper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-gold-500">
       {icon}
       {typeof badgeCount === "number" && badgeCount > 0 ? (
-        <span className="absolute -right-1 -top-1 min-w-[1.4rem] rounded-full bg-primary px-1 text-[0.65rem] font-semibold leading-4 text-primary-foreground">
+        <span className="absolute right-0 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-gold-500 px-1 font-mono text-[10px] font-medium leading-none text-brand-espresso shadow-sm">
           {badgeCount}
         </span>
       ) : null}
@@ -132,10 +145,10 @@ function UserMenu({ user, onSignOut }: UserMenuProps) {
       alt={name}
       width={40}
       height={40}
-      className="h-10 w-10 rounded-full object-cover"
+      className="h-10 w-10 rounded-full object-cover ring-1 ring-brand-sand"
     />
   ) : (
-    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold uppercase text-primary">
+    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-gold-100 font-sub text-sm font-semibold uppercase text-brand-copper ring-1 ring-brand-sand transition-colors duration-200 hover:bg-brand-gold-200">
       {user ? initials : <User className="h-5 w-5" />}
     </span>
   );
@@ -155,8 +168,8 @@ function UserMenu({ user, onSignOut }: UserMenuProps) {
         {user ? (
           <>
             <DropdownMenuLabel>
-              <span className="block text-sm font-medium">{name}</span>
-              <span className="block text-xs text-muted-foreground">{user.email}</span>
+              <span className="block font-sub text-sm font-medium text-brand-espresso">{name}</span>
+              <span className="block text-xs text-brand-mocha">{user.email}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
@@ -292,13 +305,19 @@ export default function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-40 transition-all duration-300",
-        isScrolled
-          ? "bg-background/95 backdrop-blur-md border-b border-border shadow-sm"
-          : "bg-transparent"
+        "relative z-40 h-[60px] w-full border-b border-[rgba(232,213,176,0.6)] transition-shadow duration-300 md:h-[72px]",
+        isScrolled && "shadow-card",
       )}
     >
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-4 md:px-6">
+      {/* Background layer — the backdrop-filter must live here, NOT on the
+          header itself: a filtered element becomes the containing block for
+          fixed descendants, which would clip the fullscreen mobile menu to
+          the header's 60px height. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10 bg-[rgba(253,246,236,0.92)] backdrop-blur-md backdrop-saturate-150"
+      />
+      <div className="mx-auto grid h-full w-full max-w-[1280px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-6">
         {/* Left Section - Mobile Menu + Nav Links */}
         <div className="flex items-center gap-3 lg:gap-8">
           <button
@@ -306,13 +325,13 @@ export default function Header() {
             aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={mobileMenuOpen}
             onClick={toggleMobileMenu}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-espresso transition-colors duration-200 hover:bg-brand-gold-100 hover:text-brand-copper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-gold-500 lg:hidden"
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
           <nav className="hidden items-center gap-8 lg:flex">
-            {NAV_LINKS.slice(0, 4).map((item) => (
+            {NAV_LINKS.map((item) => (
               <NavItem
                 key={item.href}
                 href={item.href}
@@ -325,36 +344,17 @@ export default function Header() {
 
         {/* Center Section - Logo */}
         <div className="flex justify-center">
-          <Link href="/" className="inline-flex items-center" aria-label="Mannequin Care home">
-            <Image
-              src="/logo.jpg"
-              alt="Mannequin Care"
-              width={140}
-              height={40}
-              className="h-10 w-auto transition-all duration-300"
-              style={{ width: "auto" }}
-              priority
-            />
+          <Link href="/" className="inline-flex min-w-[120px] items-center justify-center" aria-label="Mannequin Care home">
+            <Logo />
           </Link>
         </div>
 
-        {/* Right Section - Nav Links + Icons */}
+        {/* Right Section - Icons */}
         <div className="flex items-center justify-end gap-3 lg:gap-8">
-          {/* <nav className="hidden items-center gap-8 lg:flex">
-            {NAV_LINKS.slice(2).map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                isActive={pathname === item.href}
-              />
-            ))}
-          </nav> */}
-
           <div className="flex items-center gap-2 sm:gap-3">
             <IconButton
               label="Wishlist"
-              icon={<Heart className="h-5 w-5" />}
+              icon={<Heart className="h-[22px] w-[22px]" strokeWidth={1.75} />}
               href="/wishlist"
               badgeCount={wishlistCount}
               onClick={closeMobileMenu}
@@ -367,7 +367,7 @@ export default function Header() {
             />
             <IconButton
               label="Cart"
-              icon={<ShoppingBag className="h-5 w-5" />}
+              icon={<ShoppingBag className="h-[22px] w-[22px]" strokeWidth={1.75} />}
               href="/cart"
               badgeCount={cartCount}
               onClick={closeMobileMenu}
@@ -376,79 +376,99 @@ export default function Header() {
         </div>
       </div>
 
-      {mobileMenuOpen ? (
-        <div className="lg:hidden">
-          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden onClick={closeMobileMenu} />
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-y-0 right-0 z-50 flex w-72 max-w-[85vw] flex-col bg-background px-4 py-6 shadow-2xl"
+      {/* Mobile menu backdrop */}
+      <div
+        aria-hidden
+        onClick={closeMobileMenu}
+        className={cn(
+          "fixed inset-0 z-40 bg-brand-espresso/30 backdrop-blur-sm transition-opacity duration-300 lg:hidden",
+          mobileMenuOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      />
+
+      {/* Mobile menu panel — full-screen slide-in from the right */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!mobileMenuOpen}
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-brand-cream px-6 py-6 shadow-hover transition-transform duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)] lg:hidden",
+          mobileMenuOpen ? "translate-x-0" : "translate-x-full",
+        )}
+      >
+        <div className="flex items-center justify-between">
+          <Link href="/" className="inline-flex items-center" onClick={closeMobileMenu}>
+            <Logo className="h-8" />
+          </Link>
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={toggleMobileMenu}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-brand-espresso transition-colors hover:bg-brand-gold-100 hover:text-brand-copper"
           >
-            <div className="flex items-center justify-between">
-              <Link href="/" className="inline-flex items-center gap-2" onClick={closeMobileMenu}>
-                <Image
-                  src="/logo.jpg"
-                  alt="Mannequin Care"
-                  width={120}
-                  height={32}
-                  className="h-8 w-auto"
-                  style={{ width: "auto" }}
-                />
-              </Link>
-              <button
-                type="button"
-                aria-label="Close navigation"
-                onClick={toggleMobileMenu}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-foreground"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="mt-8 flex flex-col gap-4 text-base font-medium">
-              {NAV_LINKS.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  isActive={pathname === item.href}
-                  onNavigate={closeMobileMenu}
-                />
-              ))}
-            </div>
-            <div className="mt-10 grid grid-cols-2 gap-3">
-              <IconButton
-                label="Wishlist"
-                icon={<Heart className="h-5 w-5" />}
-                href="/wishlist"
-                badgeCount={wishlistCount}
-                onClick={closeMobileMenu}
-              />
-              <IconButton
-                label="Cart"
-                icon={<ShoppingBag className="h-5 w-5" />}
-                href="/cart"
-                badgeCount={cartCount}
-                onClick={closeMobileMenu}
-              />
-              <IconButton
-                label="Account"
-                icon={<User className="h-5 w-5" />}
-                href={user ? "/account" : "/auth/login"}
-                onClick={closeMobileMenu}
-              />
-            </div>
-            <div className="mt-auto">
-              <UserMenu
-                user={user}
-                onSignOut={async () => {
-                  await signOut({ callbackUrl: "/" });
-                  closeMobileMenu();
-                }}
-              />
-            </div>
-          </div>
+            <X className="h-5 w-5" />
+          </button>
         </div>
-      ) : null}
+
+        <div className="mt-12 flex flex-col gap-6">
+          {NAV_LINKS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={closeMobileMenu}
+              className={cn(
+                "font-display text-5xl italic transition-colors duration-200",
+                pathname === item.href
+                  ? "text-brand-copper"
+                  : "text-brand-espresso hover:text-brand-copper",
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="mt-10 grid grid-cols-2 gap-3">
+          <Link
+            href="/wishlist"
+            onClick={closeMobileMenu}
+            className="flex items-center justify-center gap-2 rounded-full border border-brand-sand px-4 py-3 font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-espresso transition-colors hover:bg-brand-gold-100"
+          >
+            <Heart className="h-4 w-4" /> Wishlist
+            {wishlistCount > 0 ? ` (${wishlistCount})` : ""}
+          </Link>
+          <Link
+            href="/cart"
+            onClick={closeMobileMenu}
+            className="flex items-center justify-center gap-2 rounded-full border border-brand-sand px-4 py-3 font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-espresso transition-colors hover:bg-brand-gold-100"
+          >
+            <ShoppingBag className="h-4 w-4" /> Cart
+            {cartCount > 0 ? ` (${cartCount})` : ""}
+          </Link>
+          <Link
+            href={user ? "/account" : "/auth/login"}
+            onClick={closeMobileMenu}
+            className="col-span-2 flex items-center justify-center gap-2 rounded-full bg-brand-gold-500 px-4 py-3 font-sub text-xs font-semibold uppercase tracking-[0.1em] text-brand-espresso transition-all hover:bg-brand-gold-600"
+          >
+            <User className="h-4 w-4" /> {user ? "My Account" : "Sign In"}
+          </Link>
+        </div>
+
+        <div className="mt-auto pt-10">
+          {user ? (
+            <button
+              type="button"
+              onClick={async () => {
+                await signOut({ callbackUrl: "/" });
+                closeMobileMenu();
+              }}
+              className="flex items-center gap-2 font-sub text-sm font-medium uppercase tracking-[0.1em] text-brand-mocha transition-colors hover:text-brand-copper"
+            >
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
+          ) : null}
+        </div>
+      </div>
     </header>
   );
 }

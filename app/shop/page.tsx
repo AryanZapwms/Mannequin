@@ -43,7 +43,12 @@ export default async function ShopPage({
   const filter: Record<string, any> = { status: "active" };
 
   if (params?.category) {
-    filter.$or = [{ mainCategoryId: params.category }, { subCategoryId: params.category }];
+    const matchedCategory = allCategories.find((c) => c.slug === params.category);
+    if (matchedCategory) {
+      filter.$or = [{ mainCategoryId: matchedCategory.id }, { subCategoryId: matchedCategory.id }];
+    } else {
+      filter.$or = [{ mainCategoryId: null }, { subCategoryId: null }];
+    }
   }
 
   if (params?.minPrice || params?.maxPrice) {
@@ -105,8 +110,8 @@ export default async function ShopPage({
             {mainCategories.map((category) => (
               <Link
                 key={category.id}
-                href={`/shop?category=${category.id}`}
-                className={`shrink-0 rounded-full px-4 py-2 text-xs font-medium transition-all ${params?.category === category.id
+                href={`/shop?category=${category.slug}`}
+                className={`shrink-0 rounded-full px-4 py-2 text-xs font-medium transition-all ${params?.category === category.slug
                     ? "bg-gray-900 text-white shadow-sm"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
@@ -119,8 +124,8 @@ export default async function ShopPage({
               (subCategoriesByParent[category.id] ?? []).map((sub) => (
                 <Link
                   key={sub.id}
-                  href={`/shop?category=${sub.id}`}
-                  className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[11px] font-medium transition-all ${params?.category === sub.id
+                  href={`/shop?category=${sub.slug}`}
+                  className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[11px] font-medium transition-all ${params?.category === sub.slug
                       ? "border-gray-900 bg-gray-900 text-white"
                       : "border-gray-200 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700"
                     }`}
@@ -220,8 +225,8 @@ export default async function ShopPage({
                 {mainCategories.map((category) => (
                   <div key={category.id}>
                     <Link
-                      href={`/shop?category=${category.id}`}
-                      className={`flex items-center rounded-xl px-3.5 py-2.5 text-sm transition-all ${params?.category === category.id
+                      href={`/shop?category=${category.slug}`}
+                      className={`flex items-center rounded-xl px-3.5 py-2.5 text-sm transition-all ${params?.category === category.slug
                           ? "bg-gray-900 font-medium text-white shadow-sm"
                           : "font-normal text-gray-700 hover:bg-gray-50"
                         }`}
@@ -234,8 +239,8 @@ export default async function ShopPage({
                         {subCategoriesByParent[category.id].map((sub) => (
                           <Link
                             key={sub.id}
-                            href={`/shop?category=${sub.id}`}
-                            className={`block rounded-lg px-3 py-2 text-xs transition-all ${params?.category === sub.id
+                            href={`/shop?category=${sub.slug}`}
+                            className={`block rounded-lg px-3 py-2 text-xs transition-all ${params?.category === sub.slug
                                 ? "bg-gray-800 font-medium text-white"
                                 : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
                               }`}

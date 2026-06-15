@@ -238,7 +238,7 @@ export default async function ProductDetailPage({
         {product.main_category ? (
           <>
             <span>/</span>
-            <Link href={`/shop?category=${product.main_category.id}`} className="hover:text-gray-900">
+            <Link href={`/shop?category=${product.main_category.slug}`} className="hover:text-gray-900">
               {product.main_category.name}
             </Link>
           </>

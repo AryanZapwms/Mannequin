@@ -1,7 +1,10 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { dbConnect } from "@/lib/db/connect";
 import { Product } from "@/lib/db/models/Product";
 import { toShopProduct } from "@/lib/services/product";
 import { ShopProductCard } from "@/components/shop-product-card";
+import RevealWrapper from "@/components/RevealWrapper";
 
 export default async function OurProducts() {
   await dbConnect();
@@ -13,32 +16,42 @@ export default async function OurProducts() {
   const allProducts = productDocs.map(toShopProduct);
 
   return (
-    <div className="relative w-full overflow-hidden bg-amber-50">
+    <section className="w-full bg-brand-gold-50 py-[clamp(60px,8vw,120px)]">
+      <div className="mx-auto max-w-[1280px] px-6">
+        {/* Section Header */}
+        <RevealWrapper className="flex flex-col items-center justify-between gap-6 text-center sm:flex-row sm:text-left">
+          <div>
+            <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
+              Top Brand
+            </p>
+            <h2 className="mt-3 font-display text-heading font-semibold text-brand-espresso">
+              Beauty Care Products
+            </h2>
+          </div>
+          <Link
+            href="/shop"
+            className="group inline-flex items-center gap-2 border-b border-brand-copper pb-0.5 font-sub text-sm font-medium text-brand-copper transition-colors hover:text-brand-espresso"
+          >
+            View All
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+          </Link>
+        </RevealWrapper>
 
-    <div className="container mx-auto px-4 py-16">
-      {/* Section Header */}
-      <div className="mb-12 text-center">
-        <p className="mb-2 text-sm font-medium uppercase tracking-wider text-gray-500">
-          TOP BRAND
-        </p>
-        <h2 className="text-3xl font-bold text-gray-900 md:text-4xl">
-          Beauty Care Products
-        </h2>
+        {/* Products Grid */}
+        {allProducts.length === 0 ? (
+          <RevealWrapper delay={100} className="mt-12 rounded-card border border-brand-sand bg-white p-12 text-center shadow-soft">
+            <p className="font-body text-brand-body">No products available</p>
+          </RevealWrapper>
+        ) : (
+          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {allProducts.map((product, i) => (
+              <RevealWrapper key={product.id} delay={(i % 3) * 100}>
+                <ShopProductCard product={product} />
+              </RevealWrapper>
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Products Grid */}
-      {allProducts.length === 0 ? (
-        <div className="rounded-lg bg-gray-50 p-12 text-center">
-          <p className="text-gray-600">No products available</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
-          {allProducts.map((product) => (
-            <ShopProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      )}
-    </div>
-    </div>
+    </section>
   );
 }

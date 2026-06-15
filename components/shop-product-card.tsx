@@ -3,8 +3,9 @@
 import { useState, useTransition, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, ShoppingCart, Star } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { getSessionUser } from "@/lib/auth-client";
 import { addToGuestCart } from "@/lib/services/guest-cart";
 
@@ -26,6 +27,8 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
   const [isPending, startTransition] = useTransition();
   const [inWishlist, setInWishlist] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
+  const [heartPulse, setHeartPulse] = useState(false);
 
   useEffect(() => {
     const checkWishlist = async () => {
@@ -47,6 +50,11 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
     startTransition(async () => {
       const user = await getSessionUser();
 
+      const flashAdded = () => {
+        setJustAdded(true);
+        setTimeout(() => setJustAdded(false), 1500);
+      };
+
       if (!user) {
         addToGuestCart(product.id, 1, {
           id: product.id,
@@ -57,6 +65,7 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
         });
         window.dispatchEvent(new Event("storage"));
         toast.success("Added to cart!");
+        flashAdded();
         return;
       }
 
@@ -68,6 +77,7 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
         });
         if (!res.ok) throw new Error("Failed to add to cart");
         toast.success("Added to cart!");
+        flashAdded();
       } catch (error) {
         console.error("Error adding to cart:", error);
         toast.error("Failed to add to cart");
@@ -111,6 +121,8 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
           setInWishlist(true);
           toast.success("Added to wishlist");
         }
+        setHeartPulse(true);
+        setTimeout(() => setHeartPulse(false), 200);
       } catch (error) {
         const msg =
           error instanceof Error && error.message === "Product already in wishlist"
@@ -126,71 +138,77 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
     : 0;
 
   return (
-    <Link 
+    <Link
       href={`/products/${product.slug}`}
-      className="group block"
+      className="group block h-full overflow-hidden rounded-card border border-brand-sand bg-white shadow-soft transition-all duration-300 ease-out hover:-translate-y-1 hover:border-brand-gold-400 hover:shadow-hover"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative overflow-hidden bg-white transition-all duration-500 hover:shadow-2xl">
-        {/* Badges Container */}
-        <div className="absolute left-0 right-0 top-0 z-10 flex items-start justify-between p-4">
-          {/* NEW Badge */}
-          <span className="rounded-full bg-black px-3 py-1 text-[10px] font-medium tracking-wider text-white">
-            NEW
+      <div className="relative">
+        {/* Discount Badge */}
+        {discount > 0 && (
+          <span className="absolute left-0 top-0 z-10 rounded-[0_0_8px_0] bg-brand-espresso px-2.5 py-1 font-mono text-xs text-white">
+            -{discount}%
           </span>
+        )}
 
-          {/* Discount Badge */}
-          {discount > 0 && (
-            <span className="rounded-full bg-black px-3 py-1 text-[10px] font-medium tracking-wider text-white">
-              -{discount}%
-            </span>
-          )}
-        </div>
+        {/* NEW Badge */}
+        <span className="absolute right-0 top-0 z-10 rounded-[0_0_0_8px] bg-brand-gold-500 px-2.5 py-1 font-sub text-[10px] font-bold uppercase tracking-[0.1em] text-brand-espresso">
+          New
+        </span>
 
         {/* Wishlist Button */}
         <button
           onClick={handleWishlist}
           disabled={isPending}
-          className={`absolute right-4 top-16 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 backdrop-blur-sm shadow-lg transition-all duration-300 hover:scale-110 hover:bg-white disabled:opacity-50 ${
-            isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
-          }`}
+          aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+          className="absolute right-3 top-11 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-soft backdrop-blur-sm transition-transform duration-150 hover:scale-[1.2] disabled:opacity-50"
         >
           <Heart
-            className={`h-4 w-4 transition-all duration-300 ${
-              inWishlist ? "fill-black stroke-black" : "stroke-gray-700"
-            }`}
+            className={cn(
+              "h-[18px] w-[18px] transition-colors duration-200",
+              heartPulse && "animate-spring-pop",
+              inWishlist ? "fill-brand-blush stroke-brand-blush" : "stroke-brand-sand",
+            )}
           />
         </button>
 
         {/* Product Image */}
-        <div className="relative aspect-square overflow-hidden bg-gray-50">
+        <div className="relative h-[280px] w-full overflow-hidden bg-brand-gold-50">
           {product.thumbnail_url ? (
             <Image
               src={product.thumbnail_url}
               alt={product.name}
               fill
-              className="object-cover transition-transform duration-700 group-hover:scale-105"
+              sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, (max-width: 1280px) 30vw, 22vw"
+              className="object-contain p-5 transition-transform duration-700 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center text-gray-300">
-                <ShoppingCart className="mx-auto h-12 w-12 mb-2 stroke-1" />
-                <p className="text-xs font-light tracking-wide">NO IMAGE</p>
-              </div>
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <span className="font-display text-6xl font-semibold text-brand-sand">VE</span>
+              <p className="font-sub text-[11px] font-normal text-brand-mocha">
+                Product Image Coming Soon
+              </p>
             </div>
           )}
-          
-          {/* Hover Overlay */}
-          <div className={`absolute inset-0 bg-black transition-opacity duration-500 ${
-            isHovered ? 'opacity-5' : 'opacity-0'
-          }`} />
+
+          {/* Quick-add overlay */}
+          <div
+            className={cn(
+              "absolute inset-x-0 bottom-0 flex translate-y-full items-center justify-center bg-[rgba(61,43,31,0.85)] py-3 transition-transform duration-300 ease-out",
+              isHovered && "translate-y-0",
+            )}
+          >
+            <span className="font-sub text-[13px] font-semibold uppercase tracking-[0.1em] text-white">
+              Quick Add
+            </span>
+          </div>
         </div>
 
         {/* Product Info */}
-        <div className="p-4 space-y-2.5">
+        <div className="space-y-2.5 p-5">
           {/* Product Name */}
-          <h3 className="line-clamp-2 min-h-[2.5rem] text-xs font-normal tracking-wide text-gray-900 transition-colors">
+          <h3 className="line-clamp-2 min-h-[2.5rem] font-body text-[15px] font-semibold text-brand-espresso">
             {product.name}
           </h3>
 
@@ -199,21 +217,22 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
             {[...Array(5)].map((_, i) => (
               <Star
                 key={i}
-                className={`h-2.5 w-2.5 ${
-                  i < 4 ? "fill-gray-900 text-gray-900" : "fill-gray-200 text-gray-200"
-                }`}
+                className={cn(
+                  "h-3 w-3",
+                  i < 4 ? "fill-brand-gold-500 text-brand-gold-500" : "fill-brand-sand text-brand-sand",
+                )}
               />
             ))}
-            <span className="ml-1 text-[10px] text-gray-400 font-light">(0)</span>
+            <span className="ml-1 font-sub text-xs font-light text-brand-mocha">(0 reviews)</span>
           </div>
 
           {/* Price */}
           <div className="flex items-baseline gap-2 pt-0.5">
-            <span className="text-base font-medium text-gray-900 tracking-tight">
+            <span className="font-mono text-xl text-brand-copper">
               ₹{product.price.toFixed(2)}
             </span>
             {product.compare_at_price && product.compare_at_price > product.price && (
-              <span className="text-[11px] font-light text-gray-400 line-through">
+              <span className="font-mono text-sm text-[#9E9E9E] line-through">
                 ₹{product.compare_at_price.toFixed(2)}
               </span>
             )}
@@ -223,13 +242,16 @@ export function ShopProductCard({ product }: ShopProductCardProps) {
           <button
             onClick={handleAddToCart}
             disabled={isPending || product.stock <= 0}
-            className={`w-full border border-gray-900 px-3 py-2.5 text-[10px] font-medium tracking-widest transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed ${
-              product.stock <= 0 
-                ? "bg-white text-gray-400 border-gray-300" 
-                : "bg-white text-gray-900 hover:bg-gray-900 hover:text-white"
-            }`}
+            className={cn(
+              "w-full rounded-lg px-3 py-3 font-sub text-[13px] font-semibold uppercase tracking-[0.08em] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50",
+              product.stock <= 0
+                ? "border border-brand-sand bg-white text-brand-mocha"
+                : justAdded
+                  ? "bg-brand-sage text-brand-espresso"
+                  : "bg-brand-gold-500 text-brand-espresso hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold",
+            )}
           >
-            {product.stock <= 0 ? "OUT OF STOCK" : "ADD TO CART"}
+            {product.stock <= 0 ? "Out of Stock" : justAdded ? "✓ Added" : "Add to Cart"}
           </button>
         </div>
       </div>

@@ -34,6 +34,7 @@ export function CartItemRow({ item, onUpdate, onRemove }: CartItemRowProps) {
             src={product.thumbnail_url}
             alt={product.name}
             fill
+            sizes="96px"
             className="object-cover"
           />
         ) : (

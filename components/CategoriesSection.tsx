@@ -1,5 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
+import { ArrowRight } from "lucide-react";
+import RevealWrapper from "./RevealWrapper";
 
 // Put these images in: /public/images/categories/
 // - face-care.jpg
@@ -9,6 +11,7 @@ import Image from "next/image";
 const CATEGORIES = [
   {
     id: "face",
+    label: "Face Care",
     title: "Face Care",
     count: 12,
     href: "/category/eye-shadow",
@@ -16,13 +19,16 @@ const CATEGORIES = [
   },
   {
     id: "body",
+    label: "Body Care",
     title: "Body Care",
     count: 24,
     href: "/category/face-cream",
     src: "/body-care.jpg",
+    featured: true,
   },
   {
     id: "hair",
+    label: "Hair Care",
     title: "Hair Care",
     count: 8,
     href: "/category/skin-care",
@@ -32,52 +38,69 @@ const CATEGORIES = [
 
 export default function CategoriesSection() {
   return (
-    <section className="w-full bg-white py-10">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section Headings */}
-        <p className="text-center text-sm font-medium text-stone-500 tracking-wide uppercase">
-          Shop by Categories
-        </p>
-        <h2 className="mt-2 text-center text-2xl sm:text-3xl font-bold text-stone-900">
-          Popular Categories
-        </h2>
+    <section className="w-full bg-brand-cream py-[clamp(60px,8vw,120px)]">
+      <div className="mx-auto max-w-[1280px] px-6">
+        {/* Section Heading */}
+        <RevealWrapper className="text-center">
+          <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
+            Explore
+          </p>
+          <h2 className="mt-3 font-display text-heading font-semibold text-brand-espresso">
+            Shop by Concern
+          </h2>
+          <p className="mx-auto mt-3 max-w-md font-body text-base text-brand-body">
+            Find exactly what your skin needs
+          </p>
+        </RevealWrapper>
 
         {/* Categories Grid */}
-        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 md:gap-10">
-          {CATEGORIES.map((cat) => (
-            <Link
-              key={cat.id}
-              href={cat.href}
-              className="group relative flex flex-col items-center text-center"
-            >
-              {/* Elliptical Image Container */}
-              <div
-                className="relative w-[80%] sm:w-[75%] md:w-[85%] max-w-[320px] overflow-hidden transition-transform duration-500 ease-out rounded-[50%/60%] hover:scale-105"
+        <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:gap-8">
+          {CATEGORIES.map((cat, i) => (
+            <RevealWrapper key={cat.id} delay={i * 100}>
+              <Link
+                href={cat.href}
+                className="group relative flex h-full flex-col overflow-hidden rounded-[20px] border border-brand-sand bg-brand-linen transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-1.5 hover:border-brand-gold-500 hover:shadow-hover"
               >
-                <div className="relative h-[260px] sm:h-[300px] md:h-[340px] lg:h-[380px] transition-transform duration-500">
+                {/* Image */}
+                <div
+                  className={`relative w-full overflow-hidden ${
+                    cat.featured ? "h-[300px]" : "h-[260px]"
+                  }`}
+                >
                   <Image
                     src={cat.src}
                     alt={cat.title}
                     fill
-                    sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 25vw"
-                    className="object-cover transition-all duration-500 group-hover:brightness-95"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.04]"
                   />
+
+                  {cat.featured ? (
+                    <span className="absolute right-0 top-0 rounded-[0_20px_0_12px] bg-brand-gold-500 px-2.5 py-1 font-sub text-[10px] font-bold uppercase tracking-[0.1em] text-brand-espresso">
+                      Bestseller
+                    </span>
+                  ) : null}
                 </div>
-              </div>
 
-              {/* Title & Count */}
-              <div className="mt-5">
-                <h3 className="text-base sm:text-lg font-semibold text-stone-800 group-hover:text-teal-700 transition-colors duration-300">
-                  {cat.title}
-                </h3>
-                <p className="mt-1 text-xs text-stone-400">
-                  {String(cat.count).padStart(2, "0")} Items
-                </p>
-              </div>
+                {/* Content */}
+                <div className="flex flex-1 flex-col gap-1 p-6">
+                  <p className="font-sub text-xs font-semibold uppercase tracking-[0.15em] text-brand-copper">
+                    {cat.label}
+                  </p>
+                  <h3 className="font-display text-[28px] font-semibold leading-tight text-brand-espresso">
+                    {cat.title}
+                  </h3>
+                  <p className="font-body text-sm text-brand-mocha">
+                    {String(cat.count).padStart(2, "0")} Products
+                  </p>
 
-              {/* Hover underline effect */}
-              <span className="absolute bottom-0 h-0.5 w-0 bg-teal-600 rounded-full transition-all duration-300 group-hover:w-2/3" />
-            </Link>
+                  <div className="mt-4 flex items-center gap-1.5 font-sub text-[13px] font-medium text-brand-copper">
+                    Explore
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-1" />
+                  </div>
+                </div>
+              </Link>
+            </RevealWrapper>
           ))}
         </div>
       </div>
