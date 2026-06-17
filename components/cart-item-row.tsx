@@ -27,59 +27,73 @@ export function CartItemRow({ item, onUpdate, onRemove }: CartItemRowProps) {
   };
 
   return (
-    <div className="flex gap-4 border-b pb-4 last:border-b-0">
-      <div className="relative h-24 w-24 overflow-hidden rounded-lg bg-gray-100">
+    <div className="group flex gap-3 border-b border-brand-sand/60 py-5 transition-colors first:pt-0 last:border-b-0 last:pb-0 sm:gap-5">
+      {/* Product image */}
+      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-thumb bg-brand-cream sm:h-28 sm:w-28">
         {product?.thumbnail_url ? (
           <Image
             src={product.thumbnail_url}
             alt={product.name}
             fill
-            sizes="96px"
-            className="object-cover"
+            sizes="(max-width: 640px) 80px, 112px"
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-gray-400">
+          <div className="flex h-full items-center justify-center font-sub text-[10px] uppercase tracking-wider text-brand-mocha/40">
             No Image
           </div>
         )}
       </div>
 
-      <div className="flex-1">
-        <h3 className="font-medium text-gray-900">{product?.name}</h3>
-        <p className="text-sm text-gray-600">
-          ₹{(product?.price || 0).toFixed(2)} each
-        </p>
+      {/* Details */}
+      <div className="flex flex-1 flex-col justify-between gap-2 sm:flex-row sm:gap-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="truncate font-display text-base font-semibold text-brand-espresso sm:text-lg">
+            {product?.name}
+          </h3>
+          <p className="mt-0.5 font-mono text-xs text-brand-mocha sm:text-sm">
+            ₹{(product?.price || 0).toFixed(2)} each
+          </p>
 
-        <div className="mt-3 flex items-center gap-2">
+          {/* Quantity controls */}
+          <div className="mt-3 flex items-center gap-1">
+            <button
+              onClick={() => handleQuantityChange(item.quantity - 1)}
+              disabled={isPending || item.quantity <= 1}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand-sand bg-brand-cream/60 text-brand-espresso transition-all hover:border-brand-gold-400 hover:bg-brand-gold-50 disabled:opacity-40 disabled:hover:border-brand-sand disabled:hover:bg-brand-cream/60"
+              aria-label="Decrease quantity"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <span className="flex h-8 w-10 items-center justify-center font-mono text-sm font-medium text-brand-espresso">
+              {item.quantity}
+            </span>
+            <button
+              onClick={() => handleQuantityChange(item.quantity + 1)}
+              disabled={isPending || (product?.stock || 0) <= item.quantity}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand-sand bg-brand-cream/60 text-brand-espresso transition-all hover:border-brand-gold-400 hover:bg-brand-gold-50 disabled:opacity-40 disabled:hover:border-brand-sand disabled:hover:bg-brand-cream/60"
+              aria-label="Increase quantity"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Price & remove */}
+        <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-between">
+          <span className="font-mono text-base font-semibold text-brand-copper sm:text-lg">
+            ₹{((product?.price || 0) * item.quantity).toFixed(2)}
+          </span>
           <button
-            onClick={() => handleQuantityChange(item.quantity - 1)}
-            disabled={isPending || item.quantity <= 1}
-            className="disabled:opacity-50 rounded-md border border-gray-300 p-1 hover:bg-gray-100"
+            onClick={handleRemove}
+            disabled={isPending}
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 font-sub text-[11px] uppercase tracking-wider text-brand-mocha/60 transition-all hover:bg-brand-blush/30 hover:text-red-600 disabled:opacity-40 sm:mt-2"
+            aria-label="Remove item"
           >
-            <Minus className="h-4 w-4" />
-          </button>
-          <span className="w-8 text-center font-medium">{item.quantity}</span>
-          <button
-            onClick={() => handleQuantityChange(item.quantity + 1)}
-            disabled={isPending || (product?.stock || 0) <= item.quantity}
-            className="disabled:opacity-50 rounded-md border border-gray-300 p-1 hover:bg-gray-100"
-          >
-            <Plus className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Remove</span>
           </button>
         </div>
-      </div>
-
-      <div className="flex flex-col items-end justify-between">
-        <span className="font-semibold">
-          ₹{((product?.price || 0) * item.quantity).toFixed(2)}
-        </span>
-        <button
-          onClick={handleRemove}
-          disabled={isPending}
-          className="text-red-600 hover:text-red-700 disabled:opacity-50"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
       </div>
     </div>
   );

@@ -6,7 +6,8 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { getSessionUser } from "@/lib/auth-client";
 import type { WishlistItem } from "@/lib/services/wishlist";
-import { Heart, ShoppingCart } from "lucide-react";
+import { Heart, ShoppingBag, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function WishlistPage() {
   const [items, setItems] = useState<WishlistItem[]>([]);
@@ -21,7 +22,10 @@ export default function WishlistPage() {
         setUserId(user.id);
         try {
           const res = await fetch("/api/wishlist");
-          const { items: wishlistItems } = await res.json();
+          if (!res.ok) throw new Error("Failed to load wishlist");
+          
+          const text = await res.text();
+          const { items: wishlistItems } = text ? JSON.parse(text) : { items: [] };
           setItems(wishlistItems ?? []);
         } catch (error) {
           console.error("Error loading wishlist:", error);
@@ -63,101 +67,140 @@ export default function WishlistPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading wishlist...</p>
-      </div>
-    );
-  }
-
-  if (!userId) {
-    return (
-      <div className="container mx-auto max-w-6xl px-4 py-8">
-        <h1 className="mb-8 text-3xl font-semibold">My Wishlist</h1>
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
-          <Heart className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-          <p className="mb-6 text-gray-600">Sign in to create your wishlist</p>
-          <Link
-            href="/auth/login?next=/wishlist"
-            className="inline-block rounded-md bg-black px-6 py-2 text-white hover:bg-gray-800"
-          >
-            Sign In
-          </Link>
+      <div className="flex min-h-screen items-center justify-center bg-brand-cream">
+        <div className="flex items-center gap-3 font-sub text-sm font-medium uppercase tracking-widest text-brand-copper">
+          <Heart className="h-4 w-4 animate-pulse fill-brand-gold-500 text-brand-gold-500" />
+          Loading Wishlist...
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
-      <h1 className="mb-8 text-3xl font-semibold">My Wishlist</h1>
-
-      {items.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
-          <Heart className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-          <p className="mb-6 text-gray-600">Your wishlist is empty</p>
-          <Link
-            href="/shop"
-            className="inline-block rounded-md bg-black px-6 py-2 text-white hover:bg-gray-800"
-          >
-            Start Shopping
-          </Link>
+    <div className="min-h-screen bg-brand-cream pb-16">
+      {/* ── Hero Banner ─────────────────────────────────────────── */}
+      <div className="relative mb-12 flex min-h-[40vh] items-center justify-center overflow-hidden bg-brand-espresso px-4 py-20 text-center">
+        {/* Abstract Background Elements matching brand feel */}
+        <div className="absolute inset-0 z-0 opacity-40 mix-blend-overlay">
+          <Image
+            src="https://images.unsplash.com/photo-1612817288484-6f916006741a?q=80&w=2070&auto=format&fit=crop"
+            alt="Beauty Products Banner"
+            fill
+            className="object-cover"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-brand-espresso/60 to-brand-espresso"></div>
         </div>
-      ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="group relative overflow-hidden rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
+        
+        <div className="relative z-10 mx-auto max-w-3xl">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-gold-500/30 bg-brand-gold-500/10 px-4 py-1.5 backdrop-blur-sm">
+            <Heart className="h-3.5 w-3.5 fill-brand-gold-400 text-brand-gold-400" />
+            <span className="font-sub text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold-200">
+              Your Curated Selection
+            </span>
+          </div>
+          <h1 className="mb-6 font-display text-4xl font-light italic text-white sm:text-5xl md:text-6xl">
+            My <span className="text-brand-gold-300">Wishlist</span>
+          </h1>
+          <p className="mx-auto max-w-lg font-body text-brand-cream/80 sm:text-lg">
+            Save your favorite Mannequin Care essentials and build your personalized routine.
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {!userId ? (
+          <div className="mx-auto max-w-2xl rounded-card border border-brand-sand bg-white p-10 text-center shadow-soft sm:p-16">
+            <Heart className="mx-auto mb-6 h-12 w-12 text-brand-gold-300" strokeWidth={1} />
+            <h2 className="mb-3 font-display text-2xl font-medium text-brand-espresso">Sign in required</h2>
+            <p className="mb-8 font-body text-brand-body">
+              Please sign in to view and manage your saved items.
+            </p>
+            <Link
+              href="/auth/login?next=/wishlist"
+              className="inline-flex items-center gap-2 rounded bg-brand-gold-500 px-8 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold"
             >
-              <button
-                onClick={() => handleRemoveItem(item.id)}
-                className="absolute right-3 top-3 z-10 rounded-full bg-white p-2 shadow-sm hover:bg-gray-100"
+              Sign In
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="mx-auto max-w-2xl rounded-card border border-brand-sand bg-white p-10 text-center shadow-soft sm:p-16">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-brand-cream text-brand-copper">
+              <Heart className="h-8 w-8" strokeWidth={1.5} />
+            </div>
+            <h2 className="mb-3 font-display text-2xl font-medium text-brand-espresso">Your wishlist is empty</h2>
+            <p className="mb-8 font-body text-brand-body">
+              Discover our premium collection and save your favorites here.
+            </p>
+            <Link
+              href="/shop"
+              className="inline-flex items-center gap-2 rounded bg-brand-gold-500 px-8 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold"
+            >
+              Start Shopping
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="group relative flex flex-col overflow-hidden rounded-card border border-brand-sand bg-white shadow-soft transition-all hover:-translate-y-1 hover:shadow-md"
               >
-                <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-              </button>
+                <button
+                  onClick={() => handleRemoveItem(item.id)}
+                  className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-brand-mocha shadow-sm backdrop-blur transition-colors hover:text-red-500"
+                  aria-label="Remove from wishlist"
+                >
+                  <Heart className="h-4 w-4 fill-current" />
+                </button>
 
-              <Link href={`/products/${item.product?.slug ?? item.product_id}`} className="block">
-                <div className="relative aspect-square overflow-hidden bg-gray-100">
-                  {item.product?.thumbnail_url ? (
-                    <Image
-                      src={item.product.thumbnail_url}
-                      alt={item.product.name}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-gray-400">
-                      No Image
-                    </div>
-                  )}
-                </div>
-              </Link>
-
-              <div className="p-4">
-                <Link href={`/products/${item.product?.slug ?? item.product_id}`}>
-                  <h3 className="mb-2 line-clamp-2 text-sm font-medium text-gray-900 transition-colors group-hover:text-gray-600">
-                    {item.product?.name}
-                  </h3>
+                <Link href={`/products/${item.product?.slug ?? item.product_id}`} className="block">
+                  <div className="relative aspect-[4/5] overflow-hidden bg-brand-cream/50">
+                    {item.product?.thumbnail_url ? (
+                      <Image
+                        src={item.product.thumbnail_url}
+                        alt={item.product.name}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center font-sub text-xs text-brand-mocha">
+                        No Image
+                      </div>
+                    )}
+                  </div>
                 </Link>
 
-                <div className="mb-3">
-                  <span className="text-lg font-semibold text-gray-900">
-                    ₹{(item.product?.price || 0).toFixed(2)}
-                  </span>
-                </div>
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <Link href={`/products/${item.product?.slug ?? item.product_id}`}>
+                      <h3 className="line-clamp-2 font-display text-lg font-medium text-brand-espresso transition-colors hover:text-brand-copper">
+                        {item.product?.name}
+                      </h3>
+                    </Link>
+                  </div>
 
-                <button
-                  onClick={() => handleAddToCart(item)}
-                  className="flex w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  Add to Cart
-                </button>
+                  <div className="mt-auto mb-5">
+                    <span className="font-display text-lg text-brand-espresso">
+                      ₹{(item.product?.price || 0).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => handleAddToCart(item)}
+                    className="flex w-full items-center justify-center gap-2 rounded bg-brand-espresso px-4 py-3 font-sub text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition-all hover:bg-brand-copper"
+                  >
+                    <ShoppingBag className="h-3.5 w-3.5" />
+                    Add to Cart
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

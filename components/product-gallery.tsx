@@ -20,7 +20,7 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
 
   if (images.length === 0) {
     return (
-      <div className="relative aspect-square overflow-hidden rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
+      <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-card border border-brand-sand bg-brand-gold-50 font-sub text-sm text-brand-mocha">
         No Image Available
       </div>
     );
@@ -34,17 +34,17 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
   return (
     <div className="space-y-3">
       {/* Main image */}
-      <div className="group relative aspect-square overflow-hidden rounded-2xl bg-gray-100">
+      <div className="group relative aspect-square overflow-hidden rounded-card border border-brand-sand bg-brand-gold-50 shadow-soft">
         <Image
           src={active.url}
           alt={active.alt}
           fill
           sizes="(max-width: 768px) 100vw, 50vw"
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          className="object-contain p-6 transition-transform duration-500 group-hover:scale-105"
           priority
         />
         {discount > 0 && (
-          <div className="absolute left-4 top-4 rounded-full bg-red-500 px-3 py-1 text-sm font-semibold text-white z-10">
+          <div className="absolute left-0 top-0 z-10 rounded-[0_0_8px_0] bg-brand-espresso px-3 py-1 font-mono text-sm text-white">
             -{discount}%
           </div>
         )}
@@ -54,17 +54,17 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
               type="button"
               aria-label="Previous image"
               onClick={prev}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+              className="absolute left-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-brand-sand bg-white/90 opacity-0 shadow-soft backdrop-blur-sm transition-all hover:bg-white group-hover:opacity-100"
             >
-              <ChevronLeft className="h-5 w-5 text-gray-800" />
+              <ChevronLeft className="h-5 w-5 text-brand-espresso" />
             </button>
             <button
               type="button"
               aria-label="Next image"
               onClick={next}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+              className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-brand-sand bg-white/90 opacity-0 shadow-soft backdrop-blur-sm transition-all hover:bg-white group-hover:opacity-100"
             >
-              <ChevronRight className="h-5 w-5 text-gray-800" />
+              <ChevronRight className="h-5 w-5 text-brand-espresso" />
             </button>
           </>
         )}
@@ -72,7 +72,7 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
 
       {/* Thumbnail strip */}
       {images.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2.5 overflow-x-auto pb-1">
           {images.map((img, i) => (
             <button
               key={i}
@@ -80,10 +80,10 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
               aria-label={`View image ${i + 1}`}
               onClick={() => setActiveIndex(i)}
               className={cn(
-                "relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all",
+                "relative h-16 w-16 shrink-0 overflow-hidden rounded-thumb bg-brand-gold-50 transition-all duration-200",
                 i === activeIndex
-                  ? "border-black ring-1 ring-black"
-                  : "border-gray-200 hover:border-gray-400",
+                  ? "opacity-100 ring-2 ring-brand-gold-500"
+                  : "opacity-60 ring-1 ring-brand-sand hover:opacity-100 hover:ring-brand-gold-300",
               )}
             >
               <Image
@@ -91,7 +91,7 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
                 alt={img.alt}
                 fill
                 sizes="64px"
-                className="object-cover"
+                className="object-contain p-1.5"
               />
             </button>
           ))}

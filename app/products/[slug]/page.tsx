@@ -1,10 +1,11 @@
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { ChevronRight, RotateCcw, ShieldCheck, Star, Truck } from "lucide-react";
 import { ProductActions } from "@/components/product-actions";
 import { ProductGallery } from "@/components/product-gallery";
+import { ShopProductCard } from "@/components/shop-product-card";
+import RevealWrapper from "@/components/RevealWrapper";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { dbConnect } from "@/lib/db/connect";
@@ -12,28 +13,9 @@ import { Product } from "@/lib/db/models/Product";
 import { ProductCategory } from "@/lib/db/models/ProductCategory";
 import { ProductReview } from "@/lib/db/models/ProductReview";
 import { WishlistItem } from "@/lib/db/models/WishlistItem";
+import { toShopProduct } from "@/lib/services/product";
 
 type CategoryRef = { id: string; name: string; slug: string } | null;
-
-type ListedProduct = {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  compare_at_price: number | null;
-  thumbnail_url: string | null;
-};
-
-function toListedProduct(doc: any): ListedProduct {
-  return {
-    id: doc._id.toString(),
-    name: doc.name,
-    slug: doc.slug,
-    price: doc.price,
-    compare_at_price: doc.compareAtPrice ?? null,
-    thumbnail_url: doc.thumbnailUrl ?? null,
-  };
-}
 
 function toCategoryRef(doc: any): CategoryRef {
   if (!doc) return null;
@@ -169,12 +151,12 @@ export default async function ProductDetailPage({
   }
 
   const relatedDocs = await Product.find(relatedFilter).sort({ createdAt: -1 }).limit(4);
-  const relatedProducts = relatedDocs.map(toListedProduct);
+  const relatedProducts = relatedDocs.map(toShopProduct);
 
   const suggestedDocs = await Product.find({ status: "active", _id: { $ne: productDoc._id } })
     .sort({ isFeatured: -1, createdAt: -1 })
     .limit(4);
-  const suggestedProducts = suggestedDocs.map(toListedProduct);
+  const suggestedProducts = suggestedDocs.map(toShopProduct);
 
   const reviewCount = reviews.length;
   const averageRating = reviewCount > 0 ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount : 0;
@@ -225,172 +207,216 @@ export default async function ProductDetailPage({
     revalidatePath(`/products/${product.slug}`);
   }
 
+  const inStock = Boolean(product.stock && product.stock > 0);
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <nav className="mb-8 flex items-center gap-2 text-sm text-gray-600">
-        <Link href="/" className="hover:text-gray-900">
-          Home
-        </Link>
-        <span>/</span>
-        <Link href="/shop" className="hover:text-gray-900">
-          Shop
-        </Link>
-        {product.main_category ? (
-          <>
-            <span>/</span>
-            <Link href={`/shop?category=${product.main_category.slug}`} className="hover:text-gray-900">
-              {product.main_category.name}
-            </Link>
-          </>
-        ) : null}
-        <span>/</span>
-        <span className="text-gray-900">{product.name}</span>
-      </nav>
-
-      <div className="grid gap-8 lg:grid-cols-2">
-        <div className="space-y-4">
-          <ProductGallery images={allImages} discount={discount} />
-        </div>
-
-        <div className="space-y-6">
-          <div>
-            <h1 className="mb-2 text-3xl font-bold text-gray-900">{product.name}</h1>
-            {product.sub_category ? <p className="text-sm text-gray-600">{product.sub_category.name}</p> : null}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Star
-                  key={index}
-                  className={`h-5 w-5 ${index < filledStars ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
-                />
-              ))}
-            </div>
-            <span className="text-sm text-gray-600">
-              {reviewCount > 0 ? `${roundedAverage.toFixed(1)} (${reviewCount} review${reviewCount === 1 ? "" : "s"})` : "No reviews yet"}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-gray-900">₹{product.price.toFixed(2)}</span>
-            {product.compare_at_price && product.compare_at_price > product.price ? (
-              <span className="text-xl text-gray-500 line-through">₹{product.compare_at_price.toFixed(2)}</span>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {product.stock && product.stock > 0 ? (
-              <>
-                <div className="h-2 w-2 rounded-full bg-green-500" />
-                <span className="text-sm font-medium text-green-600">In Stock ({product.stock} available)</span>
-              </>
-            ) : (
-              <>
-                <div className="h-2 w-2 rounded-full bg-red-500" />
-                <span className="text-sm font-medium text-red-600">Out of Stock</span>
-              </>
-            )}
-          </div>
-
-          {product.description ? (
-            <div className="border-t border-gray-200 pt-6">
-              <p className="leading-relaxed text-gray-700">{product.description}</p>
-            </div>
-          ) : null}
-
-          {product.sku ? (
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">SKU:</span> {product.sku}
-            </div>
-          ) : null}
-
-          <ProductActions
-            productId={product.id}
-            productSlug={product.slug}
-            productName={product.name}
-            productPrice={product.price}
-            productThumbnailUrl={product.thumbnail_url}
-            maxStock={product.stock ?? 0}
-            isOutOfStock={!product.stock || product.stock === 0}
-            initialInWishlist={initialInWishlist}
-            initialWishlistItemId={initialWishlistItemId}
-          />
-
-          <div className="space-y-3 rounded-lg bg-gray-50 p-4 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">✓</span>
-              <span>Free shipping on orders over ₹500</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">✓</span>
-              <span>Easy returns within 30 days</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">✓</span>
-              <span>100% authentic products</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-16 grid gap-10 lg:grid-cols-[2fr,1fr]">
-        <section>
-          <h2 className="mb-4 text-2xl font-bold">Customer Reviews</h2>
-          {reviewCount === 0 ? (
-            <p className="text-sm text-gray-600">No reviews yet. Be the first to share your experience.</p>
-          ) : (
-            <div className="space-y-6">
-              {reviews.map((review) => (
-                <article key={review.id} className="rounded-lg border p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {review.user?.display_name ?? "Customer"}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(review.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <Star
-                          key={index}
-                          className={`h-4 w-4 ${index < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  {review.title ? <p className="mt-3 text-sm font-medium text-gray-900">{review.title}</p> : null}
-                  {review.body ? <p className="mt-2 text-sm text-gray-700">{review.body}</p> : null}
-                  {review.admin_response ? (
-                    <div className="mt-4 rounded-md bg-gray-50 p-3 text-sm text-gray-700">
-                      <p className="font-medium text-gray-900">Store response</p>
-                      <p className="mt-1">{review.admin_response}</p>
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <aside className="rounded-lg border p-5">
-          <h3 className="mb-4 text-lg font-semibold">
-            {authUser ? (userReview ? "Update your review" : "Write a review") : "Sign in to review"}
-          </h3>
-          {authUser ? (
+    <div className="w-full bg-brand-cream">
+      <div className="mx-auto max-w-[1280px] px-6 py-10 lg:py-14">
+        {/* ── Breadcrumb ─────────────────────────────────────────── */}
+        <nav className="mb-8 flex flex-wrap items-center gap-1.5 font-sub text-[12px] font-medium tracking-[0.04em] text-brand-mocha">
+          <Link href="/" className="transition-colors hover:text-brand-copper">
+            Home
+          </Link>
+          <ChevronRight className="h-3.5 w-3.5 text-brand-sand" />
+          <Link href="/shop" className="transition-colors hover:text-brand-copper">
+            Shop
+          </Link>
+          {product.main_category ? (
             <>
-              <form action={submitReview} className="space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="rating" className="text-sm font-medium text-gray-700">
+              <ChevronRight className="h-3.5 w-3.5 text-brand-sand" />
+              <Link
+                href={`/shop?category=${product.main_category.slug}`}
+                className="transition-colors hover:text-brand-copper"
+              >
+                {product.main_category.name}
+              </Link>
+            </>
+          ) : null}
+          <ChevronRight className="h-3.5 w-3.5 text-brand-sand" />
+          <span className="text-brand-espresso">{product.name}</span>
+        </nav>
+
+        {/* ── Product overview ───────────────────────────────────── */}
+        <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
+          <RevealWrapper className="lg:sticky lg:top-24 lg:self-start">
+            <ProductGallery images={allImages} discount={discount} />
+          </RevealWrapper>
+
+          <RevealWrapper delay={120} className="space-y-7">
+            <div>
+              {product.sub_category ? (
+                <p className="mb-3 font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
+                  {product.sub_category.name}
+                </p>
+              ) : null}
+              <h1 className="font-display text-display font-semibold leading-[1.1] text-brand-espresso">
+                {product.name}
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Star
+                    key={index}
+                    className={`h-[18px] w-[18px] ${
+                      index < filledStars
+                        ? "fill-brand-gold-500 text-brand-gold-500"
+                        : "fill-brand-sand text-brand-sand"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="font-sub text-sm text-brand-mocha">
+                {reviewCount > 0
+                  ? `${roundedAverage.toFixed(1)} · ${reviewCount} review${reviewCount === 1 ? "" : "s"}`
+                  : "No reviews yet"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-3">
+              <span className="font-mono text-4xl text-brand-copper">₹{product.price.toFixed(2)}</span>
+              {product.compare_at_price && product.compare_at_price > product.price ? (
+                <span className="font-mono text-xl text-brand-mocha/60 line-through">
+                  ₹{product.compare_at_price.toFixed(2)}
+                </span>
+              ) : null}
+              {discount > 0 ? (
+                <span className="rounded-full bg-brand-gold-100 px-3 py-1 font-sub text-xs font-semibold uppercase tracking-[0.08em] text-brand-espresso">
+                  Save {discount}%
+                </span>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${inStock ? "bg-brand-sage" : "bg-brand-blush"}`}
+              />
+              <span
+                className={`font-sub text-sm font-semibold tracking-[0.04em] ${
+                  inStock ? "text-brand-mocha" : "text-brand-copper"
+                }`}
+              >
+                {inStock ? `In Stock — ${product.stock} available` : "Out of Stock"}
+              </span>
+            </div>
+
+            {product.description ? (
+              <div className="border-t border-brand-sand pt-6">
+                <p className="font-body text-[15px] leading-[1.8] text-brand-body">{product.description}</p>
+              </div>
+            ) : null}
+
+            {product.sku ? (
+              <p className="font-sub text-[13px] text-brand-mocha">
+                <span className="font-semibold text-brand-espresso">SKU:</span> {product.sku}
+              </p>
+            ) : null}
+
+            <ProductActions
+              productId={product.id}
+              productSlug={product.slug}
+              productName={product.name}
+              productPrice={product.price}
+              productThumbnailUrl={product.thumbnail_url}
+              maxStock={product.stock ?? 0}
+              isOutOfStock={!inStock}
+              initialInWishlist={initialInWishlist}
+              initialWishlistItemId={initialWishlistItemId}
+            />
+
+            <div className="grid gap-3 rounded-card border border-brand-sand bg-white p-5 shadow-soft sm:grid-cols-3">
+              {[
+                { Icon: Truck, label: "Free shipping over ₹500" },
+                { Icon: RotateCcw, label: "30-day easy returns" },
+                { Icon: ShieldCheck, label: "100% authentic" },
+              ].map(({ Icon, label }) => (
+                <div key={label} className="flex items-center gap-2.5">
+                  <Icon className="h-5 w-5 shrink-0 text-brand-gold-600" strokeWidth={1.5} />
+                  <span className="font-sub text-[12px] font-medium text-brand-body">{label}</span>
+                </div>
+              ))}
+            </div>
+          </RevealWrapper>
+        </div>
+
+        {/* ── Reviews ────────────────────────────────────────────── */}
+        <div className="mt-20 grid gap-10 lg:grid-cols-[2fr,1fr]">
+          <section>
+            <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
+              What people say
+            </p>
+            <h2 className="mt-2 font-display text-heading font-semibold text-brand-espresso">
+              Customer Reviews
+            </h2>
+            {reviewCount === 0 ? (
+              <p className="mt-6 font-body text-brand-body">
+                No reviews yet. Be the first to share your experience.
+              </p>
+            ) : (
+              <div className="mt-8 space-y-5">
+                {reviews.map((review) => (
+                  <article
+                    key={review.id}
+                    className="rounded-card border border-brand-sand bg-white p-6 shadow-soft"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-sub text-sm font-semibold text-brand-espresso">
+                          {review.user?.display_name ?? "Customer"}
+                        </p>
+                        <p className="mt-0.5 font-sub text-xs text-brand-mocha">
+                          {new Date(review.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <Star
+                            key={index}
+                            className={`h-4 w-4 ${
+                              index < review.rating
+                                ? "fill-brand-gold-500 text-brand-gold-500"
+                                : "fill-brand-sand text-brand-sand"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {review.title ? (
+                      <p className="mt-4 font-sub text-sm font-semibold text-brand-espresso">{review.title}</p>
+                    ) : null}
+                    {review.body ? (
+                      <p className="mt-2 font-body text-[14px] leading-relaxed text-brand-body">{review.body}</p>
+                    ) : null}
+                    {review.admin_response ? (
+                      <div className="mt-4 rounded-thumb border border-brand-sand bg-brand-gold-50 p-4">
+                        <p className="font-sub text-sm font-semibold text-brand-espresso">Store response</p>
+                        <p className="mt-1 font-body text-[14px] leading-relaxed text-brand-body">
+                          {review.admin_response}
+                        </p>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <aside className="h-fit rounded-card border border-brand-sand bg-white p-6 shadow-soft lg:sticky lg:top-24">
+            <h3 className="font-display text-2xl font-semibold text-brand-espresso">
+              {authUser ? (userReview ? "Update your review" : "Write a review") : "Sign in to review"}
+            </h3>
+            {authUser ? (
+              <form action={submitReview} className="mt-5 space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="rating" className="font-sub text-sm font-medium text-brand-espresso">
                     Rating
                   </label>
                   <select
                     id="rating"
                     name="rating"
                     defaultValue={userReview?.rating?.toString() ?? "5"}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="w-full rounded-thumb border border-brand-sand bg-brand-cream px-3 py-2.5 font-body text-sm text-brand-espresso outline-none transition-colors focus:border-brand-gold-500"
                     required
                   >
                     {[5, 4, 3, 2, 1].map((value) => (
@@ -400,20 +426,20 @@ export default async function ProductDetailPage({
                     ))}
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label htmlFor="title" className="text-sm font-medium text-gray-700">
+                <div className="space-y-1.5">
+                  <label htmlFor="title" className="font-sub text-sm font-medium text-brand-espresso">
                     Headline (optional)
                   </label>
                   <input
                     id="title"
                     name="title"
                     defaultValue={userReview?.title ?? ""}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="w-full rounded-thumb border border-brand-sand bg-brand-cream px-3 py-2.5 font-body text-sm text-brand-espresso outline-none transition-colors placeholder:text-brand-mocha/60 focus:border-brand-gold-500"
                     placeholder="Summarize your experience"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label htmlFor="body" className="text-sm font-medium text-gray-700">
+                <div className="space-y-1.5">
+                  <label htmlFor="body" className="font-sub text-sm font-medium text-brand-espresso">
                     Review
                   </label>
                   <textarea
@@ -421,103 +447,70 @@ export default async function ProductDetailPage({
                     name="body"
                     defaultValue={userReview?.body ?? ""}
                     rows={4}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="w-full rounded-thumb border border-brand-sand bg-brand-cream px-3 py-2.5 font-body text-sm text-brand-espresso outline-none transition-colors placeholder:text-brand-mocha/60 focus:border-brand-gold-500"
                     placeholder="What did you like or dislike?"
                   />
                 </div>
-                <button type="submit" className="w-full rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+                <button
+                  type="submit"
+                  className="w-full rounded bg-brand-gold-500 px-4 py-3 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold"
+                >
                   Submit review
                 </button>
               </form>
-            </>
-          ) : (
-            <div className="space-y-4 text-sm text-gray-600">
-              <p>You need to be signed in to share your thoughts about this product.</p>
-              <Link
-                href={`/auth/login?next=/products/${product.slug}`}
-                className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
-              >
-                Sign in to review
-              </Link>
-            </div>
-          )}
-        </aside>
-      </div>
-
-      {relatedProducts.length > 0 ? (
-        <div className="mt-16">
-          <h2 className="mb-6 text-2xl font-bold">Related Products</h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {relatedProducts.map((relProduct) => (
-              <Link
-                key={relProduct.id}
-                href={`/products/${relProduct.slug}`}
-                className="group overflow-hidden rounded-lg bg-white shadow-sm transition-shadow hover:shadow-md"
-              >
-                <div className="relative aspect-square bg-gray-100">
-                  {relProduct.thumbnail_url ? (
-                    <Image
-                      src={relProduct.thumbnail_url}
-                      alt={relProduct.name}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-gray-400">No Image</div>
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="mb-2 line-clamp-2 text-sm font-medium text-gray-900">{relProduct.name}</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-semibold text-gray-900">₹{relProduct.price.toFixed(2)}</span>
-                    {relProduct.compare_at_price && relProduct.compare_at_price > relProduct.price ? (
-                      <span className="text-sm text-gray-500 line-through">₹{relProduct.compare_at_price.toFixed(2)}</span>
-                    ) : null}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+            ) : (
+              <div className="mt-5 space-y-4 font-body text-sm text-brand-body">
+                <p>You need to be signed in to share your thoughts about this product.</p>
+                <Link
+                  href={`/auth/login?next=/products/${product.slug}`}
+                  className="inline-flex items-center justify-center rounded bg-brand-gold-500 px-5 py-3 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold"
+                >
+                  Sign in to review
+                </Link>
+              </div>
+            )}
+          </aside>
         </div>
-      ) : null}
 
-      <div className="mt-16">
-        <h2 className="mb-6 text-2xl font-bold">Suggested for You</h2>
-        {suggestedProducts.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {suggestedProducts.map((suggested) => (
-              <Link
-                key={suggested.id}
-                href={`/products/${suggested.slug}`}
-                className="group overflow-hidden rounded-lg bg-white shadow-sm transition-shadow hover:shadow-md"
-              >
-                <div className="relative aspect-square bg-gray-100">
-                  {suggested.thumbnail_url ? (
-                    <Image
-                      src={suggested.thumbnail_url}
-                      alt={suggested.name}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-gray-400">No Image</div>
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="mb-2 line-clamp-2 text-sm font-medium text-gray-900">{suggested.name}</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-semibold text-gray-900">₹{suggested.price.toFixed(2)}</span>
-                    {suggested.compare_at_price && suggested.compare_at_price > suggested.price ? (
-                      <span className="text-sm text-gray-500 line-through">₹{suggested.compare_at_price.toFixed(2)}</span>
-                    ) : null}
-                  </div>
-                </div>
-              </Link>
-            ))}
+        {/* ── Related products ───────────────────────────────────── */}
+        {relatedProducts.length > 0 ? (
+          <div className="mt-20">
+            <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
+              You may also like
+            </p>
+            <h2 className="mt-2 font-display text-heading font-semibold text-brand-espresso">
+              Related Products
+            </h2>
+            <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {relatedProducts.map((relProduct, i) => (
+                <RevealWrapper key={relProduct.id} delay={(i % 4) * 80}>
+                  <ShopProductCard product={relProduct} />
+                </RevealWrapper>
+              ))}
+            </div>
           </div>
-        ) : (
-          <p className="text-sm text-gray-600">no product found in the suggestions</p>
-        )}
+        ) : null}
+
+        {/* ── Suggested products ─────────────────────────────────── */}
+        <div className="mt-20">
+          <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
+            Picked for you
+          </p>
+          <h2 className="mt-2 font-display text-heading font-semibold text-brand-espresso">
+            Suggested for You
+          </h2>
+          {suggestedProducts.length > 0 ? (
+            <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {suggestedProducts.map((suggested, i) => (
+                <RevealWrapper key={suggested.id} delay={(i % 4) * 80}>
+                  <ShopProductCard product={suggested} />
+                </RevealWrapper>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-6 font-body text-brand-body">No products found in the suggestions.</p>
+          )}
+        </div>
       </div>
     </div>
   );

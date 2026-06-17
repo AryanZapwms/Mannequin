@@ -125,20 +125,20 @@ export function ProductActions({
   };
 
   return (
-    <div className="space-y-4 border-t border-gray-200 pt-6">
+    <div className="space-y-4 border-t border-brand-sand pt-6">
       {/* Quantity + Add to Cart */}
       <div className="flex items-center gap-4">
-        <div className="flex items-center rounded-md border border-gray-300">
+        <div className="flex items-center rounded border border-brand-sand bg-white">
           <button
             type="button"
             aria-label="Decrease quantity"
             onClick={decrement}
             disabled={quantity <= 1 || isOutOfStock}
-            className="px-4 py-2 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+            className="px-4 py-3 text-brand-espresso transition-colors hover:bg-brand-gold-50 disabled:opacity-40"
           >
             <Minus className="h-4 w-4" />
           </button>
-          <span className="w-12 border-x border-gray-300 py-2 text-center text-sm font-medium select-none">
+          <span className="w-12 select-none border-x border-brand-sand py-3 text-center font-mono text-sm text-brand-espresso">
             {quantity}
           </span>
           <button
@@ -146,7 +146,7 @@ export function ProductActions({
             aria-label="Increase quantity"
             onClick={increment}
             disabled={quantity >= maxStock || isOutOfStock}
-            className="px-4 py-2 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+            className="px-4 py-3 text-brand-espresso transition-colors hover:bg-brand-gold-50 disabled:opacity-40"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -156,7 +156,7 @@ export function ProductActions({
           type="button"
           onClick={handleAddToCart}
           disabled={isOutOfStock || isPendingCart}
-          className="flex flex-1 items-center justify-center gap-2 rounded-md bg-black px-6 py-3 font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className="flex flex-1 items-center justify-center gap-2 rounded bg-brand-gold-500 px-6 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold disabled:cursor-not-allowed disabled:border disabled:border-brand-sand disabled:bg-white disabled:text-brand-mocha disabled:hover:translate-y-0 disabled:hover:shadow-none"
         >
           <ShoppingCart className="h-5 w-5" />
           {isPendingCart ? "Adding…" : isOutOfStock ? "Out of Stock" : "Add to Cart"}
@@ -169,13 +169,13 @@ export function ProductActions({
           type="button"
           onClick={handleWishlist}
           disabled={isPendingWishlist}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-md border-2 px-6 py-3 font-medium transition-colors ${
+          className={`flex flex-1 items-center justify-center gap-2 rounded border px-6 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
             inWishlist
-              ? "border-red-400 bg-red-50 text-red-600 hover:bg-red-100"
-              : "border-gray-300 text-gray-900 hover:bg-gray-50"
+              ? "border-brand-blush bg-brand-blush/20 text-brand-copper hover:bg-brand-blush/30"
+              : "border-brand-sand text-brand-espresso hover:bg-white hover:shadow-soft"
           }`}
         >
-          <Heart className={`h-5 w-5 ${inWishlist ? "fill-red-500 text-red-500" : ""}`} />
+          <Heart className={`h-5 w-5 ${inWishlist ? "fill-brand-blush text-brand-blush" : ""}`} />
           {isPendingWishlist
             ? "Updating…"
             : inWishlist
@@ -187,7 +187,7 @@ export function ProductActions({
           type="button"
           aria-label="Share product"
           onClick={handleShare}
-          className="flex items-center justify-center gap-2 rounded-md border-2 border-gray-300 px-6 py-3 font-medium text-gray-900 transition-colors hover:bg-gray-50"
+          className="flex items-center justify-center gap-2 rounded border border-brand-sand px-5 py-3.5 text-brand-espresso transition-all duration-200 hover:bg-white hover:shadow-soft"
         >
           <Share2 className="h-5 w-5" />
         </button>
