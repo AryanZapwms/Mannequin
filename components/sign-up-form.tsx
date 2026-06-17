@@ -2,24 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import { signIn } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 const roleOptions = [
   { value: "customer", label: "Customer" },
-  { value: "staff", label: "Staff" },
-  { value: "admin", label: "Admin" },
 ] as const;
 
 type RoleOption = (typeof roleOptions)[number]["value"];
@@ -80,79 +69,89 @@ export function SignUpForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Sign up</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSignUp}>
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="m@example.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="role">Role</Label>
-                <select
-                  id="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as RoleOption)}
-                  disabled={isLoading}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                >
-                  {roleOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="repeat-password">Repeat Password</Label>
-                </div>
-                <Input
-                  id="repeat-password"
-                  type="password"
-                  required
-                  value={repeatPassword}
-                  onChange={(e) => setRepeatPassword(e.target.value)}
-                />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creating an account..." : "Sign up"}
-              </Button>
+      <div className="rounded-card border border-brand-sand bg-white p-6 shadow-soft sm:p-10">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <Link href="/" className="mb-6 inline-block">
+            <Image
+              src="/logo.jpg"
+              alt="Mannequin Care"
+              width={1157}
+              height={314}
+              priority
+              className="h-10 w-auto object-contain mix-blend-multiply sm:h-12"
+            />
+          </Link>
+          <h1 className="font-display text-2xl font-semibold text-brand-espresso">Create Account</h1>
+          <p className="mt-2 font-body text-sm text-brand-mocha">
+            Join us to manage your orders and more.
+          </p>
+        </div>
+
+        <form onSubmit={handleSignUp}>
+          <div className="flex flex-col gap-5">
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-xl border border-brand-sand bg-brand-cream/40 px-4 py-2.5 font-body text-sm text-brand-espresso transition-all placeholder:text-brand-mocha/50 focus:border-brand-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
+              />
             </div>
-            <div className="mt-4 text-center text-sm">
-              Already have an account?{" "}
-              <Link href="/auth/login" className="underline underline-offset-4">
-                Login
-              </Link>
+
+
+
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-xl border border-brand-sand bg-brand-cream/40 px-4 py-2.5 font-body text-sm text-brand-espresso transition-all focus:border-brand-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
+              />
             </div>
-          </form>
-        </CardContent>
-      </Card>
+
+            <div className="space-y-1.5">
+              <label htmlFor="repeat-password" className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha">
+                Repeat Password
+              </label>
+              <input
+                id="repeat-password"
+                type="password"
+                required
+                value={repeatPassword}
+                onChange={(e) => setRepeatPassword(e.target.value)}
+                className="w-full rounded-xl border border-brand-sand bg-brand-cream/40 px-4 py-2.5 font-body text-sm text-brand-espresso transition-all focus:border-brand-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
+              />
+            </div>
+
+            {error && <p className="font-body text-sm text-red-500">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="mt-2 w-full rounded-xl bg-brand-gold-500 px-6 py-3.5 font-sub text-xs font-semibold uppercase tracking-[0.1em] text-brand-espresso transition-all hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+            >
+              {isLoading ? "Creating Account..." : "Sign Up"}
+            </button>
+          </div>
+          <div className="mt-6 text-center font-body text-sm text-brand-mocha">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="font-medium text-brand-copper hover:underline">
+              Log in
+            </Link>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
