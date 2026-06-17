@@ -7,12 +7,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-const roleOptions = [
-  { value: "customer", label: "Customer" },
-] as const;
-
-type RoleOption = (typeof roleOptions)[number]["value"];
-
 export function SignUpForm({
   className,
   ...props
@@ -20,7 +14,6 @@ export function SignUpForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
-  const [role, setRole] = useState<RoleOption>("customer");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -40,7 +33,7 @@ export function SignUpForm({
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, role: "customer" }),
       });
       const data = await res.json();
 
@@ -58,7 +51,7 @@ export function SignUpForm({
         throw new Error("Account created. Please log in.");
       }
 
-      router.push(role === "admin" || role === "staff" ? "/admin" : "/account");
+      router.push("/account");
       router.refresh();
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
@@ -103,8 +96,6 @@ export function SignUpForm({
                 className="w-full rounded-xl border border-brand-sand bg-brand-cream/40 px-4 py-2.5 font-body text-sm text-brand-espresso transition-all placeholder:text-brand-mocha/50 focus:border-brand-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
               />
             </div>
-
-
 
             <div className="space-y-1.5">
               <label htmlFor="password" className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha">
