@@ -8,6 +8,24 @@ import {
   ChevronRight,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { cn } from "@/lib/utils";
+
+
+function Logo({ className }: { className?: string }) {
+    return (
+      <Image
+        src="/logo.jpg"
+        alt="Mannequin Care"
+        width={1157}
+        height={314}
+        priority
+        className={cn("h-7 w-auto object-contain mix-blend-multiply md:h-9", className)}
+      />
+    );
+  }
+
+
 
 function useMediaQuery(query: string) {
   const [val, setVal] = useState(false);
@@ -125,6 +143,7 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
     stateRef.current = { cols, rows, opacities, targets, colorIdx, inText, dpr };
   }, [text, fontSize, R, STEP]);
 
+  
   const draw = useCallback((canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
     const s = stateRef.current;
     if (!s) return;
@@ -382,15 +401,14 @@ export default function Footer() {
 
           {/* Brand column */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <Link href="/" className="inline-flex flex-col leading-none">
-              <span style={{ fontFamily: "var(--font-cormorant), serif", fontStyle: "italic", fontWeight: 600, fontSize: 26, color: "#fff" }}>
-                Mannequin
-              </span>
-              <span style={{ fontFamily: "var(--font-jost), sans-serif", fontSize: 11, letterSpacing: "0.32em", color: "#FFD700" }}>
-                CARE
-              </span>
-            </Link>
-            <hr className="mcf-rule" />
+            {/* <Link href="/" className="inline-flex flex-col leading-none"> */}
+             <div className="inline-flex flex-col leading-none">
+                       <Link href="/" className="inline-flex min-w-[120px] " aria-label="Mannequin Care home">
+                         <Logo />
+                       </Link>
+                     </div>
+              
+            {/* </Link>  */}
             <p style={{ fontSize: 14, lineHeight: 1.85, color: "rgba(255,255,255,0.6)", fontWeight: 300, maxWidth: 260 }}>
               True radiance begins with self-care — when you nurture your skin
               with love and attention, it becomes a reflection of the beauty within.
