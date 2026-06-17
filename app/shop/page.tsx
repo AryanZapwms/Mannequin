@@ -101,7 +101,7 @@ export default async function ShopPage({
             <Link
               href="/shop"
               className={`shrink-0 rounded-full px-4 py-2 text-xs font-medium transition-all ${!params?.category
-                  ? "bg-gray-900 text-white shadow-sm"
+                  ? "bg-[#f5c400] text-black shadow-sm"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
             >
@@ -112,7 +112,7 @@ export default async function ShopPage({
                 key={category.id}
                 href={`/shop?category=${category.slug}`}
                 className={`shrink-0 rounded-full px-4 py-2 text-xs font-medium transition-all ${params?.category === category.slug
-                    ? "bg-gray-900 text-white shadow-sm"
+                    ? "bg-[#f5c400] text-black shadow-sm"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
               >
@@ -126,7 +126,7 @@ export default async function ShopPage({
                   key={sub.id}
                   href={`/shop?category=${sub.slug}`}
                   className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[11px] font-medium transition-all ${params?.category === sub.slug
-                      ? "border-gray-900 bg-gray-900 text-white"
+                      ? "border-[#f5c400] bg-[#f5c400] text-black"
                       : "border-gray-200 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700"
                     }`}
                 >
@@ -149,7 +149,7 @@ export default async function ShopPage({
                     name="search"
                     placeholder="Search products…"
                     defaultValue={params?.search}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-4 pr-11 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 transition-all"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-4 pr-11 text-sm placeholder:text-gray-400 focus:border-[#f5c400] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#f5c400] transition-all"
                   />
                   <button
                     type="submit"
@@ -170,7 +170,7 @@ export default async function ShopPage({
                   </h3>
                   <Link
                     href="/shop"
-                    className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-900 transition-colors"
+                    className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#f5c400] transition-colors"
                   >
                     <X className="h-3 w-3" />
                     Clear
@@ -178,17 +178,17 @@ export default async function ShopPage({
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {params?.search && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f5c400] px-2.5 py-1 text-[11px] font-medium text-black">
                       "{params.search}"
                     </span>
                   )}
                   {params?.minPrice && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f5c400] px-2.5 py-1 text-[11px] font-medium text-black">
                       Min ₹{params.minPrice}
                     </span>
                   )}
                   {params?.maxPrice && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f5c400] px-2.5 py-1 text-[11px] font-medium text-black">
                       Max ₹{params.maxPrice}
                     </span>
                   )}
@@ -211,12 +211,12 @@ export default async function ShopPage({
                 <Link
                   href="/shop"
                   className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm transition-all ${!params?.category
-                      ? "bg-gray-900 font-medium text-white shadow-sm"
-                      : "font-normal text-gray-700 hover:bg-gray-50"
+                      ? "bg-[#f5c400] font-medium text-black shadow-sm"
+                      : "font-normal text-black hover:bg-gray-50"
                     }`}
                 >
                   All Products
-                  <span className={`text-[11px] ${!params?.category ? "text-gray-400" : "text-gray-400"
+                  <span className={`text-[11px] ${!params?.category ? "text-black" : "text-black"
                     }`}>
                     {total}
                   </span>
@@ -227,7 +227,7 @@ export default async function ShopPage({
                     <Link
                       href={`/shop?category=${category.slug}`}
                       className={`flex items-center rounded-xl px-3.5 py-2.5 text-sm transition-all ${params?.category === category.slug
-                          ? "bg-gray-900 font-medium text-white shadow-sm"
+                          ? "bg-[#f5c400] font-medium text-black shadow-sm"
                           : "font-normal text-gray-700 hover:bg-gray-50"
                         }`}
                     >
@@ -241,7 +241,7 @@ export default async function ShopPage({
                             key={sub.id}
                             href={`/shop?category=${sub.slug}`}
                             className={`block rounded-lg px-3 py-2 text-xs transition-all ${params?.category === sub.slug
-                                ? "bg-gray-800 font-medium text-white"
+                                ? "bg-[#f5c400] font-medium text-black"
                                 : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
                               }`}
                           >
@@ -266,7 +266,7 @@ export default async function ShopPage({
                   name="search"
                   placeholder="Search products…"
                   defaultValue={params?.search}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-4 pr-12 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 transition-all"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-4 pr-12 text-sm placeholder:text-gray-400 focus:border-[#f5c400] focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 transition-all"
                 />
                 <button
                   type="submit"
@@ -281,17 +281,17 @@ export default async function ShopPage({
             {hasActiveFilters && (
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 {params?.search && (
-                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-[#f5c400] px-2.5 py-1 text-[11px] font-medium text-black">
                     "{params.search}"
                   </span>
                 )}
                 {params?.minPrice && (
-                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-[#f5c400] px-2.5 py-1 text-[11px] font-medium text-black">
                     Min ₹{params.minPrice}
                   </span>
                 )}
                 {params?.maxPrice && (
-                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-[#f5c400] px-2.5 py-1 text-[11px] font-medium text-black">
                     Max ₹{params.maxPrice}
                   </span>
                 )}
@@ -335,7 +335,7 @@ export default async function ShopPage({
                   </p>
                   <Link
                     href="/shop"
-                    className="inline-block px-6 py-3 bg-black text-white text-sm rounded-xl hover:bg-gray-900 transition-colors"
+                    className="inline-block px-6 py-3 bg-[#f5c400] text-black text-sm rounded-xl hover:bg-[#f5c400] transition-colors"
                   >
                     Clear Filters
                   </Link>

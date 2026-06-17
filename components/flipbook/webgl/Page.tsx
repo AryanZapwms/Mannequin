@@ -14,7 +14,7 @@ import {
   PAGE_HEIGHT,
   PAGE_SEGMENTS,
   PAGE_WIDTH,
-  SEGMENT_WIDTH,
+  SEGMENT_WIDTH, 
   TURNING_CURVE_STRENGTH,
 } from "./book-constants";
 
@@ -30,6 +30,7 @@ const pageGeometry = new THREE.BoxGeometry(
   PAGE_SEGMENTS,
   2,
 );
+
 pageGeometry.translate(PAGE_WIDTH / 2, 0, 0);
 
 {
