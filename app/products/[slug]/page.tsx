@@ -185,24 +185,22 @@ export default async function ProductDetailPage({
 
     await dbConnect();
 
+    // One review per customer per product. The form is hidden once a review
+    // exists, so this only trips on a request that bypassed the UI.
     const existingReview = await ProductReview.findOne({ productId: product.id, userId: user.id });
 
     if (existingReview) {
-      existingReview.rating = ratingValue;
-      existingReview.title = titleValue.trim() || null;
-      existingReview.body = bodyValue.trim() || null;
-      existingReview.status = "approved";
-      await existingReview.save();
-    } else {
-      await ProductReview.create({
-        rating: ratingValue,
-        title: titleValue.trim() || null,
-        body: bodyValue.trim() || null,
-        productId: product.id,
-        userId: user.id,
-        status: "approved",
-      });
+      throw new Error("You have already reviewed this product");
     }
+
+    await ProductReview.create({
+      rating: ratingValue,
+      title: titleValue.trim() || null,
+      body: bodyValue.trim() || null,
+      productId: product.id,
+      userId: user.id,
+      status: "approved",
+    });
 
     revalidatePath(`/products/${product.slug}`);
   }
@@ -372,8 +370,13 @@ export default async function ProductDetailPage({
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="font-sub text-sm font-semibold text-brand-espresso">
+                        <p className="flex flex-wrap items-center gap-2 font-sub text-sm font-semibold text-brand-espresso">
                           {review.user?.display_name ?? "Customer"}
+                          {authUser && review.user?.id === authUser.id ? (
+                            <span className="rounded-full bg-brand-gold-100 px-2 py-0.5 font-sub text-[10px] font-semibold uppercase tracking-wider text-brand-espresso">
+                              Your review
+                            </span>
+                          ) : null}
                         </p>
                         <p className="mt-0.5 font-sub text-xs text-brand-mocha">
                           {new Date(review.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
@@ -414,9 +417,59 @@ export default async function ProductDetailPage({
 
           <aside className="h-fit min-w-0 rounded-card border border-brand-sand bg-white p-5 shadow-soft sm:p-6 lg:sticky lg:top-24">
             <h3 className="font-display text-2xl font-semibold text-brand-espresso">
-              {authUser ? (userReview ? "Update your review" : "Write a review") : "Sign in to review"}
+              {!authUser
+                ? "Sign in to review"
+                : userReview
+                  ? "You've reviewed this"
+                  : "Write a review"}
             </h3>
-            {authUser ? (
+
+            {/* Already reviewed — show it back to them instead of the form */}
+            {authUser && userReview ? (
+              <div className="mt-5 space-y-4">
+                <div className="rounded-thumb border border-brand-sand bg-brand-gold-50 p-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Star
+                          key={index}
+                          className={`h-4 w-4 ${
+                            index < userReview.rating
+                              ? "fill-brand-gold-500 text-brand-gold-500"
+                              : "fill-brand-sand text-brand-sand"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="font-sub text-sm font-semibold text-brand-espresso">
+                      {userReview.rating}/5
+                    </span>
+                  </div>
+                  {userReview.title ? (
+                    <p className="mt-3 font-sub text-sm font-semibold text-brand-espresso">
+                      {userReview.title}
+                    </p>
+                  ) : null}
+                  {userReview.body ? (
+                    <p className="mt-1.5 font-body text-[14px] leading-relaxed text-brand-body">
+                      {userReview.body}
+                    </p>
+                  ) : null}
+                </div>
+
+                <p className="font-body text-sm leading-relaxed text-brand-body">
+                  Thanks for sharing your experience — you can leave one review per product. Need a
+                  change?{" "}
+                  <Link
+                    href="/contact-us"
+                    className="font-medium text-brand-copper underline-offset-4 hover:underline"
+                  >
+                    Contact us
+                  </Link>
+                  .
+                </p>
+              </div>
+            ) : authUser ? (
               <form action={submitReview} className="mt-5 space-y-4">
                 <div className="space-y-1.5">
                   <label htmlFor="rating" className="font-sub text-sm font-medium text-brand-espresso">
@@ -425,7 +478,7 @@ export default async function ProductDetailPage({
                   <select
                     id="rating"
                     name="rating"
-                    defaultValue={userReview?.rating?.toString() ?? "5"}
+                    defaultValue="5"
                     className="w-full rounded-thumb border border-brand-sand bg-brand-cream px-3 py-2.5 font-body text-sm text-brand-espresso outline-none transition-colors focus:border-brand-gold-500"
                     required
                   >
@@ -443,7 +496,6 @@ export default async function ProductDetailPage({
                   <input
                     id="title"
                     name="title"
-                    defaultValue={userReview?.title ?? ""}
                     className="w-full rounded-thumb border border-brand-sand bg-brand-cream px-3 py-2.5 font-body text-sm text-brand-espresso outline-none transition-colors placeholder:text-brand-mocha/60 focus:border-brand-gold-500"
                     placeholder="Summarize your experience"
                   />
@@ -455,7 +507,6 @@ export default async function ProductDetailPage({
                   <textarea
                     id="body"
                     name="body"
-                    defaultValue={userReview?.body ?? ""}
                     rows={4}
                     className="w-full rounded-thumb border border-brand-sand bg-brand-cream px-3 py-2.5 font-body text-sm text-brand-espresso outline-none transition-colors placeholder:text-brand-mocha/60 focus:border-brand-gold-500"
                     placeholder="What did you like or dislike?"
