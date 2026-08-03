@@ -27,10 +27,17 @@ interface PopulatedProduct {
 
 function toCartItem(doc: any): CartItem {
   const product = doc.productId as PopulatedProduct | null | undefined;
+  const rawProductId = doc.productId;
+  const productId =
+    product?._id?.toString?.() ??
+    (rawProductId && typeof rawProductId.toString === "function"
+      ? rawProductId.toString()
+      : "");
+
   return {
     id: doc._id.toString(),
     user_id: doc.userId.toString(),
-    product_id: product?._id ? product._id.toString() : doc.productId.toString(),
+    product_id: productId,
     quantity: doc.quantity,
     created_at: (doc.createdAt ?? new Date()).toISOString(),
     product: product?._id

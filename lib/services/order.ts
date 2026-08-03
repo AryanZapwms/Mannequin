@@ -33,6 +33,8 @@ export interface Order {
   notes?: string;
   placed_at: string;
   updated_at: string;
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
   items?: OrderItem[];
 }
 
@@ -62,6 +64,8 @@ function toOrder(doc: any): Order {
     notes: doc.notes ?? undefined,
     placed_at: (doc.placedAt ?? doc.createdAt ?? new Date()).toISOString(),
     updated_at: (doc.updatedAt ?? new Date()).toISOString(),
+    razorpay_order_id: doc.razorpayOrderId ?? undefined,
+    razorpay_payment_id: doc.razorpayPaymentId ?? undefined,
     items: (doc.items ?? []).map((item: any) => ({
       id: item._id.toString(),
       order_id: id,
@@ -89,6 +93,11 @@ export interface CreateOrderInput {
   billing_address?: Record<string, any> | null;
   shipping_address?: Record<string, any> | null;
   notes?: string | null;
+  razorpay_order_id?: string | null;
+  razorpay_payment_id?: string | null;
+  idempotency_key?: string | null;
+  guest_token?: string | null;
+  guest_email?: string | null;
 }
 
 export async function createOrder(
@@ -115,6 +124,11 @@ export async function createOrder(
         billingAddress: order.billing_address ?? null,
         shippingAddress: order.shipping_address ?? null,
         notes: order.notes ?? null,
+        razorpayOrderId: order.razorpay_order_id ?? null,
+        razorpayPaymentId: order.razorpay_payment_id ?? null,
+        idempotencyKey: order.idempotency_key ?? null,
+        guestToken: order.guest_token ?? null,
+        guestEmail: order.guest_email ?? null,
         items: items.map((item) => ({
           productId: item.product_id ?? null,
           quantity: item.quantity,

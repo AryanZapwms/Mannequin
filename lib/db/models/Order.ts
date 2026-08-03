@@ -50,12 +50,31 @@ const orderSchema = new Schema(
     notes: { type: String, default: null },
     items: { type: [orderItemSchema], default: [] },
     placedAt: { type: Date, default: Date.now },
+    /** Razorpay order id (`order_...`) — the handle the webhook reconciles against */
+    razorpayOrderId: { type: String, default: null },
+    /** Razorpay payment id (`pay_...`) — needed for refunds and reconciliation */
+    razorpayPaymentId: { type: String, default: null },
+    /** Client-supplied key that makes order creation safe to retry */
+    idempotencyKey: { type: String, default: null },
+    /** Lets a guest open their own confirmation page without an account */
+    guestToken: { type: String, default: null },
+    guestEmail: { type: String, default: null },
   },
   { timestamps: { createdAt: false, updatedAt: true }, collection: "orders" },
 );
 
 orderSchema.index({ userId: 1 });
 orderSchema.index({ placedAt: -1 });
+// Partial + unique: at most one order per key/payment, but many orders may have none.
+orderSchema.index(
+  { idempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { idempotencyKey: { $type: "string" } } },
+);
+orderSchema.index(
+  { razorpayPaymentId: 1 },
+  { unique: true, partialFilterExpression: { razorpayPaymentId: { $type: "string" } } },
+);
+orderSchema.index({ razorpayOrderId: 1 });
 
 export type OrderDoc = InferSchemaType<typeof orderSchema>;
 

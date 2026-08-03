@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
+import { signIn } from "next-auth/react";
 import { getSessionUser } from "@/lib/auth-client";
 import { getGuestCart, clearGuestCart } from "@/lib/services/guest-cart";
-import { createRazorpayOrder, verifyPayment } from "@/lib/services/razorpay";
 import { BulkOrderModal } from "@/components/bulk-order-modal";
 import type { CartItem } from "@/lib/services/cart";
 import type { GuestCartItem } from "@/lib/services/guest-cart";
@@ -87,6 +87,24 @@ export default function CheckoutPage() {
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponError, setCouponError] = useState("");
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+
+  // New customers set a password here; the account is created before payment
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [emailTaken, setEmailTaken] = useState(false);
+
+  // Email verification — guests must confirm a code before they can order
+  const [codeSent, setCodeSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
+  // Stable across retries of the same checkout attempt, so a re-submit after a
+  // network failure returns the original order instead of creating a second one.
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const [address, setAddress] = useState<AddressForm>({
     full_name: "",
@@ -171,8 +189,86 @@ export default function CheckoutPage() {
     void loadCheckout();
   }, []);
 
+  // Count down the resend cooldown
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((seconds) => seconds - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
   const updateAddress = (name: keyof AddressForm, value: string) => {
     setAddress((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Editing the email after verifying invalidates it — you can only order to
+  // the address you actually proved you own.
+  const isEmailVerified =
+    emailVerified && verifiedEmail === address.email.trim().toLowerCase();
+
+  const handleSendCode = async () => {
+    const email = address.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Enter a valid email address first.");
+      return;
+    }
+
+    setSendingCode(true);
+    setEmailTaken(false);
+
+    try {
+      const res = await fetch("/api/auth/verify-email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (payload.accountExists) setEmailTaken(true);
+        if (payload.retryAfter) setResendIn(payload.retryAfter);
+        throw new Error(payload.error || "Could not send the code");
+      }
+
+      setCodeSent(true);
+      setVerificationCode("");
+      setResendIn(60);
+      toast.success(`We sent a 6-digit code to ${email}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the code");
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleConfirmCode = async () => {
+    const email = address.email.trim().toLowerCase();
+    if (!/^\d{6}$/.test(verificationCode.trim())) {
+      toast.error("Enter the 6-digit code from your email.");
+      return;
+    }
+
+    setVerifying(true);
+
+    try {
+      const res = await fetch("/api/auth/verify-email/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: verificationCode.trim() }),
+      });
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(payload.error || "Could not verify that code");
+      }
+
+      setEmailVerified(true);
+      setVerifiedEmail(email);
+      toast.success("Email verified — you're all set.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not verify that code");
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const subtotal = cartItems.reduce(
@@ -187,28 +283,32 @@ export default function CheckoutPage() {
     setCouponError("");
     if (!couponCode.trim()) return;
 
-    // Check coupon against site settings
-    const res = await fetch(`/api/coupons/${encodeURIComponent(couponCode.toUpperCase().trim())}`);
+    // The server prices the cart with the code applied — a product-scoped
+    // coupon can't be evaluated here without knowing what it covers.
+    const res = await fetch("/api/coupons/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: couponCode.toUpperCase().trim(),
+        cartItems: cartItems.map((item) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+        })),
+      }),
+    });
+
+    const payload = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      setCouponError("Invalid or expired coupon code.");
+      setCouponError(payload.error || "Invalid or expired coupon code.");
       setDiscountAmount(0);
       setCouponApplied(false);
       return;
     }
 
-    const { coupon } = await res.json();
-    const couponData = coupon as { type: "percent" | "fixed"; value: number };
-    let discount = 0;
-    if (couponData.type === "percent") {
-      discount = Math.round(subtotal * (couponData.value / 100) * 100) / 100;
-    } else {
-      discount = Math.min(couponData.value, subtotal);
-    }
-
-    setDiscountAmount(discount);
+    setDiscountAmount(payload.discount);
     setCouponApplied(true);
-    toast.success(`Coupon applied! You save ₹${discount.toFixed(2)}`);
+    toast.success(`Coupon applied! You save ₹${payload.discount.toFixed(2)}`);
   };
 
   const removeCoupon = () => {
@@ -231,38 +331,122 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (isGuest) {
+      if (!address.email) {
+        toast.error("Please enter your email address.");
+        return;
+      }
+      if (!isEmailVerified) {
+        toast.error("Please verify your email address before placing the order.");
+        return;
+      }
+      if (password.length < 6) {
+        toast.error("Please choose a password of at least 6 characters.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        toast.error("The two passwords don't match.");
+        return;
+      }
+    }
+
     setProcessing(true);
+    setEmailTaken(false);
+
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
 
     try {
-      let razorpayPaymentId: string | undefined;
-
-      if (paymentMethod === "razorpay") {
-        const razorpayOrder = await createRazorpayOrder({
-          amount: total,
-          receipt: `guest-${Date.now()}`,
-          notes: { email: address.email || userEmail || "" },
+      // Create and sign into the account before taking payment, so the order is
+      // owned by a real customer who can track it later.
+      if (isGuest) {
+        const registerRes = await fetch("/api/checkout/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: address.email,
+            password,
+            displayName: address.full_name,
+            phone: address.phone,
+          }),
         });
 
-        await new Promise<void>((resolve, reject) => {
+        if (!registerRes.ok) {
+          const err = await registerRes.json().catch(() => ({}));
+          if (registerRes.status === 409) {
+            setEmailTaken(true);
+            throw new Error(
+              "You already have an account with this email. Please sign in to continue.",
+            );
+          }
+          throw new Error(err.error || "Could not create your account");
+        }
+
+        const signInResult = await signIn("credentials", {
+          email: address.email,
+          password,
+          redirect: false,
+        });
+
+        if (signInResult?.error) {
+          throw new Error(
+            "Your account was created but sign-in failed. Please sign in and try again.",
+          );
+        }
+      }
+
+      let payment: {
+        razorpayOrderId: string;
+        razorpayPaymentId: string;
+        razorpaySignature: string;
+      } | null = null;
+
+      if (paymentMethod === "razorpay") {
+        // The server prices the cart and creates the Razorpay order — the
+        // amount is never chosen here.
+        const orderRes = await fetch("/api/checkout/razorpay-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cartItems,
+            couponCode: couponApplied ? couponCode : undefined,
+            email: address.email || userEmail || "",
+          }),
+        });
+
+        if (!orderRes.ok) {
+          const err = await orderRes.json().catch(() => ({}));
+          throw new Error(err.error || "Could not start payment");
+        }
+
+        const razorpayOrder = await orderRes.json();
+
+        // Refuse to charge an amount the customer wasn't shown.
+        if (Math.abs(razorpayOrder.pricing.total - total) >= 0.01) {
+          throw new Error(
+            "Prices in your cart have changed. Please review your order and try again.",
+          );
+        }
+
+        payment = await new Promise((resolve, reject) => {
           const options = {
             key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-            amount: Math.round(total * 100),
-            currency: "INR",
+            amount: razorpayOrder.amount,
+            currency: razorpayOrder.currency,
             name: "Mannequin Care",
             description: "Order Payment",
-            order_id: razorpayOrder.id,
-            handler: async (response: any) => {
-              const isValid = await verifyPayment(
-                razorpayOrder.id,
-                response.razorpay_payment_id,
-                response.razorpay_signature
-              );
-              if (isValid) {
-                razorpayPaymentId = response.razorpay_payment_id;
-                resolve();
-              } else {
-                reject(new Error("Payment verification failed"));
-              }
+            order_id: razorpayOrder.razorpayOrderId,
+            // Signature is verified server-side in /api/orders — a check here
+            // would prove nothing, since the browser can lie about the result.
+            handler: (response: any) =>
+              resolve({
+                razorpayOrderId: razorpayOrder.razorpayOrderId,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            modal: {
+              ondismiss: () => reject(new Error("Payment cancelled")),
             },
             prefill: {
               name: address.full_name,
@@ -277,30 +461,33 @@ export default function CheckoutPage() {
         });
       }
 
-      // Create order via server-side API (bypasses RLS, supports guests)
+      // Create the order server-side (prices and payment are re-verified there)
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cartItems,
+          cartItems: cartItems.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+          })),
           shippingAddress: address,
           guestEmail: isGuest ? address.email : undefined,
           paymentMethod,
-          razorpayPaymentId,
-          subtotal,
-          tax,
-          shipping,
-          total,
-          discountTotal: discountAmount,
+          couponCode: couponApplied ? couponCode : undefined,
+          idempotencyKey: idempotencyKeyRef.current,
+          ...(payment ?? {}),
         }),
       });
 
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.error || "Order creation failed");
       }
 
-      const { orderId } = await response.json();
+      const { orderId, guestToken } = await response.json();
+
+      // Attempt finished — a later checkout must not reuse this key
+      idempotencyKeyRef.current = null;
 
       // Clear guest cart from localStorage
       if (isGuest) {
@@ -308,7 +495,11 @@ export default function CheckoutPage() {
         window.dispatchEvent(new Event("storage"));
       }
 
-      router.push(`/order-confirmation/${orderId}`);
+      router.push(
+        guestToken
+          ? `/order-confirmation/${orderId}?token=${guestToken}`
+          : `/order-confirmation/${orderId}`,
+      );
     } catch (err) {
       console.error("Checkout error:", err);
       toast.error(
@@ -373,14 +564,15 @@ export default function CheckoutPage() {
               {/* Guest login prompt */}
               {isGuest && (
                 <div className="rounded-card border border-brand-sand bg-brand-cream/60 p-5 text-sm text-brand-body shadow-soft">
-                  <span className="font-semibold text-brand-espresso">Have an account?</span>{" "}
+                  <span className="font-semibold text-brand-espresso">Already have an account?</span>{" "}
                   <Link
                     href="/auth/login?next=/checkout"
                     className="font-medium text-brand-copper hover:underline"
                   >
                     Sign in
                   </Link>{" "}
-                  to use saved addresses and track your orders.
+                  to use your saved addresses — otherwise just fill in the details below and
+                  we&rsquo;ll create your account as you check out.
                 </div>
               )}
 
@@ -466,15 +658,106 @@ export default function CheckoutPage() {
                       placeholder="+91 98765 43210"
                     />
                   </div>
-                  <AddressInput
-                    label="Email"
-                    name="email"
-                    value={address.email}
-                    onChange={updateAddress}
-                    type="email"
-                    required={isGuest}
-                    placeholder="your@email.com"
-                  />
+                  {isGuest ? (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="email"
+                          className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha"
+                        >
+                          Email <span className="text-brand-copper">*</span>
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            id="email"
+                            name="email"
+                            type="email"
+                            required
+                            value={address.email}
+                            onChange={(e) => updateAddress("email", e.target.value)}
+                            placeholder="your@email.com"
+                            className="w-full flex-1 rounded-xl border border-brand-sand bg-brand-cream/40 px-4 py-2.5 font-body text-sm text-brand-espresso transition-all placeholder:text-brand-mocha/50 focus:border-brand-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
+                          />
+                          {isEmailVerified ? (
+                            <span className="flex shrink-0 items-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-4 font-sub text-[11px] font-semibold uppercase tracking-wider text-green-700">
+                              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                              Verified
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendCode}
+                              disabled={sendingCode || resendIn > 0}
+                              className="shrink-0 rounded-xl bg-brand-espresso px-5 py-2.5 font-sub text-[11px] font-semibold uppercase tracking-[0.08em] text-white transition-all hover:bg-brand-copper hover:shadow-soft disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-espresso"
+                            >
+                              {sendingCode
+                                ? "Sending…"
+                                : resendIn > 0
+                                  ? `Resend ${resendIn}s`
+                                  : codeSent
+                                    ? "Resend"
+                                    : "Verify"}
+                            </button>
+                          )}
+                        </div>
+                        {!isEmailVerified && (
+                          <p className="font-body text-xs text-brand-mocha">
+                            We&rsquo;ll email you a 6-digit code to confirm this address before
+                            your order is placed.
+                          </p>
+                        )}
+                      </div>
+
+                      {codeSent && !isEmailVerified && (
+                        <div className="space-y-2 rounded-xl border border-brand-gold-200 bg-brand-gold-50 p-4">
+                          <label
+                            htmlFor="verification_code"
+                            className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha"
+                          >
+                            Verification code
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              id="verification_code"
+                              name="verification_code"
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                              value={verificationCode}
+                              onChange={(e) =>
+                                setVerificationCode(e.target.value.replace(/\D/g, ""))
+                              }
+                              placeholder="000000"
+                              className="w-40 rounded-xl border border-brand-sand bg-white px-4 py-2.5 text-center font-mono text-lg tracking-[0.4em] text-brand-espresso focus:border-brand-gold-500 focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleConfirmCode}
+                              disabled={verifying || verificationCode.length !== 6}
+                              className="rounded-xl bg-brand-gold-500 px-5 py-2.5 font-sub text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all hover:bg-brand-gold-600 hover:shadow-gold disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {verifying ? "Checking…" : "Confirm"}
+                            </button>
+                          </div>
+                          <p className="font-body text-xs text-brand-mocha">
+                            Sent to {address.email}. Check your spam folder if it hasn&rsquo;t
+                            arrived.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <AddressInput
+                      label="Email"
+                      name="email"
+                      value={address.email}
+                      onChange={updateAddress}
+                      type="email"
+                      required={false}
+                      placeholder="your@email.com"
+                    />
+                  )}
                   <AddressInput
                     label="Street Address"
                     name="street_address"
@@ -507,6 +790,83 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Create account (new customers only) */}
+              {isGuest && (
+                <div className="rounded-card border border-brand-sand bg-white p-6 shadow-soft sm:p-8">
+                  <h2 className="mb-2 font-display text-xl font-semibold text-brand-espresso">
+                    Create Your Account
+                  </h2>
+                  <p className="mb-6 font-body text-sm text-brand-body">
+                    We&rsquo;ll set up an account with{" "}
+                    <span className="font-medium text-brand-espresso">
+                      {address.email || "your email"}
+                    </span>{" "}
+                    so you can track this order and check out faster next time.
+                  </p>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="password"
+                        className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha"
+                      >
+                        Password <span className="text-brand-copper">*</span>
+                      </label>
+                      <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        required
+                        autoComplete="new-password"
+                        minLength={6}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        className="w-full rounded-xl border border-brand-sand bg-brand-cream/40 px-4 py-2.5 font-body text-sm text-brand-espresso transition-all placeholder:text-brand-mocha/50 focus:border-brand-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="confirm_password"
+                        className="block font-sub text-[11px] font-medium uppercase tracking-[0.1em] text-brand-mocha"
+                      >
+                        Confirm Password <span className="text-brand-copper">*</span>
+                      </label>
+                      <input
+                        id="confirm_password"
+                        name="confirm_password"
+                        type="password"
+                        required
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter your password"
+                        className="w-full rounded-xl border border-brand-sand bg-brand-cream/40 px-4 py-2.5 font-body text-sm text-brand-espresso transition-all placeholder:text-brand-mocha/50 focus:border-brand-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-gold-200"
+                      />
+                    </div>
+                  </div>
+
+                  {confirmPassword.length > 0 && password !== confirmPassword && (
+                    <p className="mt-3 font-body text-xs text-red-500">
+                      The two passwords don&rsquo;t match.
+                    </p>
+                  )}
+
+                  {emailTaken && (
+                    <div className="mt-4 rounded-xl border border-brand-blush bg-[rgba(249,199,199,0.25)] p-4 font-body text-sm text-brand-espresso">
+                      An account already exists for {address.email}.{" "}
+                      <Link
+                        href="/auth/login?next=/checkout"
+                        className="font-medium text-brand-copper underline"
+                      >
+                        Sign in
+                      </Link>{" "}
+                      to place this order — your cart will be waiting.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Payment */}
               <div className="rounded-card border border-brand-sand bg-white p-6 shadow-soft sm:p-8">
@@ -671,7 +1031,7 @@ export default function CheckoutPage() {
 
                 <button
                   type="submit"
-                  disabled={processing}
+                  disabled={processing || (isGuest && !isEmailVerified)}
                   className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-gold-500 px-6 py-4 font-sub text-xs font-semibold uppercase tracking-[0.1em] text-brand-espresso transition-all hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                 >
                   {processing ? (
@@ -683,6 +1043,12 @@ export default function CheckoutPage() {
                     </>
                   )}
                 </button>
+
+                {isGuest && !isEmailVerified && (
+                  <p className="mt-3 text-center font-body text-xs text-brand-copper">
+                    Verify your email address to place this order.
+                  </p>
+                )}
 
                 <p className="mt-5 text-center font-body text-[11px] leading-relaxed text-brand-mocha">
                   By placing your order you agree to our{" "}

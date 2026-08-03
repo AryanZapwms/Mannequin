@@ -10,8 +10,8 @@ try {
   console.warn("Failed to set DNS servers:", e);
 }
 
-// Manually parse .env.local if MONGODB_URI is not present in process.env
-if (!process.env.MONGODB_URI) {
+// Manually parse .env.local if NEXT_MONGO_URL is not present in process.env
+if (!process.env.NEXT_MONGO_URL) {
   const envLocalPath = path.resolve(process.cwd(), ".env.local");
   if (fs.existsSync(envLocalPath)) {
     const envContent = fs.readFileSync(envLocalPath, "utf-8");
@@ -26,11 +26,12 @@ if (!process.env.MONGODB_URI) {
   }
 }
 
-import { dbConnect } from "../lib/db/connect";
-import { ProductCategory } from "../lib/db/models/ProductCategory";
-import { Product } from "../lib/db/models/Product";
+async function main() {
+  const { dbConnect } = await import("../lib/db/connect");
+  const { ProductCategory } = await import("../lib/db/models/ProductCategory");
+  const { Product } = await import("../lib/db/models/Product");
 
-const categoriesData = [
+  const categoriesData = [
   // Main Categories
   { name: 'Face Care', slug: 'face-care', description: 'Vitamin E-powered face care products for radiant, healthy and youthful skin.', parentSlug: null },
   { name: 'Body Care', slug: 'body-care', description: 'Luxurious Vitamin E body care essentials for silky, supple and well-nourished skin.', parentSlug: null },
@@ -738,5 +739,5 @@ async function seed() {
     process.exit(1);
   }
 }
-
-seed();
+}
+main();

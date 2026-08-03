@@ -8,6 +8,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body?.password === "string" ? body.password : "";
+    const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
+    const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
     const roleInput = typeof body?.role === "string" ? body.role : "customer";
     const role: UserRole = (USER_ROLES as readonly string[]).includes(roleInput)
       ? (roleInput as UserRole)
@@ -32,7 +34,8 @@ export async function POST(request: NextRequest) {
     const user = await User.create({
       email,
       passwordHash,
-      displayName: email,
+      displayName: displayName || email,
+      phone: phone || null,
       role,
     });
 

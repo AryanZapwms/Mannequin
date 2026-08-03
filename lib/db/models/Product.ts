@@ -41,7 +41,7 @@ productSchema.index({ status: 1 });
 productSchema.index({ name: "text", slug: "text" });
 
 export interface ProductModel extends Model<ProductDoc> {
-  /** Atomically decrements stock, clamped at 0 — replaces the `decrement_stock` RPC */
+  /** Atomically decrements stock; resolves to null if stock is insufficient — replaces the `decrement_stock` RPC */
   decrementStock(
     productId: string,
     quantity: number,
@@ -51,11 +51,25 @@ export interface ProductModel extends Model<ProductDoc> {
 
 productSchema.static(
   "decrementStock",
-  async function decrementStock(productId: string, quantity: number, session?: ClientSession) {
-    return this.findByIdAndUpdate(
-      productId,
-      [{ $set: { stock: { $max: [0, { $subtract: ["$stock", quantity] }] } } }],
-      { new: true, session },
+  async function decrementStock(
+    productId: string,
+    quantity: number,
+    session?: ClientSession,
+  ) {
+    return this.findOneAndUpdate(
+      {
+        _id: productId,
+        stock: { $gte: quantity }, // ensure enough stock
+      },
+      {
+        $inc: {
+          stock: -quantity,
+        },
+      },
+      {
+        new: true,
+        session,
+      },
     );
   },
 );

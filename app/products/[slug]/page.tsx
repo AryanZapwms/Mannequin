@@ -339,7 +339,7 @@ export default async function ProductDetailPage({
             </div>
           </RevealWrapper>
         </div>
-
+                 
         {/* ── Reviews ────────────────────────────────────────────── */}
         <div className="mt-20 grid gap-10 lg:grid-cols-[2fr,1fr]">
           <section>

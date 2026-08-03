@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { getGuestCart } from "@/lib/services/guest-cart";
 import {
   Heart,
+  LayoutDashboard,
   LogIn,
   LogOut,
   Menu,
@@ -30,7 +31,7 @@ import {
 const NAV_LINKS = [
   { href: "/about-us", label: "About Us" },
   { href: "/shop", label: "Shop" },
-  { href: "/brochure", label: "Brochure" },
+  // { href: "/brochure", label: "Brochure" },
   { href: "/contact-us", label: "Contact Us" },
   { href: "/blog", label: "Blogs" },
 ];
@@ -172,6 +173,14 @@ function UserMenu({ user, onSignOut }: UserMenuProps) {
               <span className="block text-xs text-brand-mocha">{user.email}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {user?.role === "admin" ? (
+              <DropdownMenuItem asChild>
+                <Link href="/admin" className="flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Admin dashboard
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem asChild>
               <Link href="/account" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />

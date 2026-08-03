@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { updateProduct } from "../actions";
 import { ImageUpload } from "@/components/image-upload";
+import { GalleryUpload } from "@/components/gallery-upload";
 
 export default async function EditProductPage({ 
   params 
@@ -41,6 +42,13 @@ export default async function EditProductPage({
     status: productDoc.status,
     is_featured: productDoc.isFeatured,
     thumbnail_url: productDoc.thumbnailUrl ?? null,
+    media: [...(productDoc.media ?? [])]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((item) => ({
+        url: item.url,
+        publicId: item.publicId ?? null,
+        altText: item.altText ?? null,
+      })),
   };
 
   const categories = categoryDocs.map((c) => ({
@@ -164,6 +172,20 @@ export default async function EditProductPage({
                 ownerType="product"
                 ownerId={product.id}
                 label="Upload Thumbnail"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Gallery images</Label>
+              <p className="text-xs text-muted-foreground">
+                Additional images shown on the product page alongside the thumbnail.
+              </p>
+              <GalleryUpload
+                name="media"
+                defaultValue={product.media}
+                folder="products/media"
+                ownerType="product"
+                ownerId={product.id}
+                label="Add Images"
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">

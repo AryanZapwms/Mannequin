@@ -24,32 +24,32 @@ import { markPreloaderDone, PRELOADER_SESSION_KEY } from "./preloader-events";
  */
 
 // Flash order — last entry is the frame that dissolves into the live site.
-const MONTAGE_IMAGES = [
-  "/montage-images/1.jpg",
-  "/montage-images/2.jpg",
-  "/montage-images/3.jpg",
-  "/montage-images/4.jpg",
-  "/montage-images/5.jpg",
-  "/montage-images/6.jpg",
-  "/montage-images/7.jpg",
-  "/montage-images/8.jpg",
-  "/montage-images/9.jpg",
-  "/montage-images/10.jpg",
-  "/montage-images/11.jpg",
-  "/montage-images/12.jpg",
-  "/montage-images/12.jpg",
-  "/montage-images/13.jpg",
-  "/montage-images/14.jpg",
-  "/montage-images/15.jpg",
-  "/montage-images/16.jpg",
-  "/montage-images/17.jpg",
-  "/montage-images/18.jpg",
-  "/montage-images/19.jpg",
-  "/montage-images/20.jpg",
-  "/montage-images/21.jpg",
-  "/montage-images/22.jpg",
-  "/montage-images/23.jpg",
-];
+// const MONTAGE_IMAGES = [
+//   "/montage-images/1.jpg",
+//   "/montage-images/2.jpg",
+//   "/montage-images/3.jpg",
+//   "/montage-images/4.jpg",
+//   "/montage-images/5.jpg",
+//   "/montage-images/6.jpg",
+//   "/montage-images/7.jpg",
+//   "/montage-images/8.jpg",
+//   "/montage-images/9.jpg",
+//   "/montage-images/10.jpg",
+//   "/montage-images/11.jpg",
+//   "/montage-images/12.jpg",
+//   "/montage-images/12.jpg",
+//   "/montage-images/13.jpg",
+//   "/montage-images/14.jpg",
+//   "/montage-images/15.jpg",
+//   "/montage-images/16.jpg",
+//   "/montage-images/17.jpg",
+//   "/montage-images/18.jpg",
+//   "/montage-images/19.jpg",
+//   "/montage-images/20.jpg",
+//   "/montage-images/21.jpg",
+//   "/montage-images/22.jpg",
+//   "/montage-images/23.jpg",
+// ];
 
 const wordClassName =
   "absolute m-0 whitespace-nowrap font-logo text-[clamp(44px,12vw,180px)] font-medium leading-none tracking-[0.02em] will-change-transform";
@@ -244,6 +244,7 @@ export default function Preloader() {
       ref={containerRef}
       id="mc-preloader"
       aria-hidden="true"
+      suppressHydrationWarning
       className="fixed inset-0 z-[9999] overflow-hidden"
     >
       {/* Four cream panels — the centered hole between them reveals the live page.
@@ -260,7 +261,7 @@ export default function Preloader() {
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden opacity-0 will-change-[width,height]"
           style={{ width: 0, height: 0, borderRadius: 24 }}
         >
-          {phase === "run" &&
+          {/* {phase === "run" &&
             MONTAGE_IMAGES.map((src, i) => (
               <Image
                 key={src}
@@ -272,8 +273,8 @@ export default function Preloader() {
                 sizes="100vw"
                 className="object-cover opacity-0"
               />
-            ))}
-          <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/15 to-black/45" />
+            ))} */}
+          {/* <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/15 to-black/45" /> */}
         </div>
       </div>
 

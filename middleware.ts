@@ -3,7 +3,10 @@ import { auth } from "@/auth";
 
 export const runtime = "nodejs";
 
-const protectedRoutes = ["/account", "/checkout", "/admin", "/order-confirmation"];
+// `/checkout` and `/order-confirmation` are intentionally absent. Visitors
+// without an account reach checkout, then create one inline before paying;
+// ownership on the confirmation page is enforced in the order API instead.
+const protectedRoutes = ["/account", "/admin"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

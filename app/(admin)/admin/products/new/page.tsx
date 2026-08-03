@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { createProduct } from "../actions";
 import Link from "next/link";
 import { ImageUpload } from "@/components/image-upload";
+import { GalleryUpload } from "@/components/gallery-upload";
 
 export default async function NewProductPage() {
   await dbConnect();
@@ -117,6 +118,13 @@ export default async function NewProductPage() {
                 folder="products/thumbnails"
                 label="Upload Thumbnail"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Gallery images</Label>
+              <p className="text-xs text-muted-foreground">
+                Additional images shown on the product page alongside the thumbnail.
+              </p>
+              <GalleryUpload name="media" folder="products/media" label="Add Images" />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

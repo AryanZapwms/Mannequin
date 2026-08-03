@@ -13,17 +13,17 @@ import { cn } from "@/lib/utils";
 
 
 function Logo({ className }: { className?: string }) {
-    return (
-      <Image
-        src="/logo.jpg"
-        alt="Mannequin Care"
-        width={1157}
-        height={314}
-        priority
-        className={cn("h-7 w-auto object-contain mix-blend-multiply md:h-9", className)}
-      />
-    );
-  }
+  return (
+    <Image
+      src="/logo.jpg"
+      alt="Mannequin Care"
+      width={1157}
+      height={314}
+      priority
+      className={cn("h-7 w-auto object-contain mix-blend-multiply md:h-9", className)}
+    />
+  );
+}
 
 
 
@@ -48,10 +48,10 @@ function useMediaQuery(query: string) {
    - Smooth lerp animation
 ───────────────────────────────────────────────────────────────────── */
 
-const GOLD    = { r: 245, g: 196, b:   0 }; // brand-gold-500
-const GOLD2   = { r: 255, g: 215, b:   0 }; // brand-gold-400
-const GOLD3   = { r: 184, g: 134, b:  11 }; // brand-gold-700
-const BG_DOT  = { r: 139, g: 105, b:  20 }; // brand-mocha — faint warm glow on dark
+const GOLD = { r: 245, g: 196, b: 0 }; // brand-gold-500
+const GOLD2 = { r: 255, g: 215, b: 0 }; // brand-gold-400
+const GOLD3 = { r: 184, g: 134, b: 11 }; // brand-gold-700
+const BG_DOT = { r: 139, g: 105, b: 20 }; // brand-mocha — faint warm glow on dark
 
 const TEXT_COLORS = [GOLD, GOLD2, GOLD3];
 
@@ -62,42 +62,42 @@ interface PetalBannerProps {
 }
 
 const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) => {
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const stateRef    = useRef<{
+  const stateRef = useRef<{
     cols: number; rows: number;
     opacities: Float32Array;
-    targets:   Float32Array;
-    colorIdx:  Uint8Array;
-    inText:    Uint8Array;
+    targets: Float32Array;
+    colorIdx: Uint8Array;
+    inText: Uint8Array;
     dpr: number;
   } | null>(null);
   const rafRef = useRef<number>(0);
   const [inView, setInView] = useState(false);
 
   // Tiny dots = sharp crisp letterforms
-  const R    = isMobile ? 1.2 : 1.5;
-  const GAP  = isMobile ? 1.8 : 2;
+  const R = isMobile ? 1.2 : 1.5;
+  const GAP = isMobile ? 1.8 : 2;
   const STEP = R * 2 + GAP;
 
   const buildState = useCallback((canvas: HTMLCanvasElement, w: number, h: number) => {
     const dpr = window.devicePixelRatio || 1;
-    canvas.width  = Math.round(w * dpr);
+    canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
-    canvas.style.width  = `${w}px`;
+    canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
 
     const cols = Math.ceil(w / STEP);
     const rows = Math.ceil(h / STEP);
 
     // ── Build text mask on offscreen canvas ──────────────────────────
-    const mask  = document.createElement("canvas");
-    mask.width  = canvas.width;
+    const mask = document.createElement("canvas");
+    mask.width = canvas.width;
     mask.height = canvas.height;
-    const mctx  = mask.getContext("2d", { willReadFrequently: true })!;
+    const mctx = mask.getContext("2d", { willReadFrequently: true })!;
 
     mctx.fillStyle = "white";
-    mctx.textAlign    = "center";
+    mctx.textAlign = "center";
     mctx.textBaseline = "middle";
 
     // Main text — serif for elegance
@@ -106,9 +106,9 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
 
     // ── Classify each dot ────────────────────────────────────────────
     const opacities = new Float32Array(cols * rows);
-    const targets   = new Float32Array(cols * rows);
-    const colorIdx  = new Uint8Array(cols * rows);
-    const inText    = new Uint8Array(cols * rows);
+    const targets = new Float32Array(cols * rows);
+    const colorIdx = new Uint8Array(cols * rows);
+    const inText = new Uint8Array(cols * rows);
 
     const pw = Math.max(2, Math.round(R * 2 * dpr));
 
@@ -118,7 +118,7 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
         const cy = Math.round((j * STEP + R) * dpr);
         const x0 = Math.max(0, cx - pw);
         const y0 = Math.max(0, cy - pw);
-        const sw = Math.min(pw * 2, canvas.width  - x0);
+        const sw = Math.min(pw * 2, canvas.width - x0);
         const sh = Math.min(pw * 2, canvas.height - y0);
         let hit = false;
         if (sw > 0 && sh > 0) {
@@ -126,16 +126,16 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
           for (let k = 0; k < d.length; k += 4) if (d[k] > 20) { hit = true; break; }
         }
         const idx = i * rows + j;
-        inText[idx]  = hit ? 1 : 0;
+        inText[idx] = hit ? 1 : 0;
         colorIdx[idx] = Math.floor(Math.random() * TEXT_COLORS.length);
         if (hit) {
           const v = 0.88 + Math.random() * 0.12;  // 0.88–1.0 — fully visible
           opacities[idx] = v;
-          targets[idx]   = v;
+          targets[idx] = v;
         } else {
           const v = 0.04 + Math.random() * 0.07;  // barely visible bg dots
           opacities[idx] = v;
-          targets[idx]   = v;
+          targets[idx] = v;
         }
       }
     }
@@ -143,7 +143,7 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
     stateRef.current = { cols, rows, opacities, targets, colorIdx, inText, dpr };
   }, [text, fontSize, R, STEP]);
 
-  
+
   const draw = useCallback((canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
     const s = stateRef.current;
     if (!s) return;
@@ -155,7 +155,7 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
         const idx = i * rows + j;
         opacities[idx] += (targets[idx] - opacities[idx]) * 0.08;
 
-        const op  = opacities[idx];
+        const op = opacities[idx];
         const col = inText[idx] ? TEXT_COLORS[colorIdx[idx]] : BG_DOT;
         const { r, g, b } = col;
 
@@ -178,8 +178,8 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
     for (let k = 0; k < targets.length; k++) {
       if (inText[k]) {
         if (Math.random() < 0.004) {
-          targets[k]   = 0.82 + Math.random() * 0.18;
-          colorIdx[k]  = Math.floor(Math.random() * TEXT_COLORS.length);
+          targets[k] = 0.82 + Math.random() * 0.18;
+          colorIdx[k] = Math.floor(Math.random() * TEXT_COLORS.length);
         }
       } else {
         if (Math.random() < 0.002) {
@@ -190,7 +190,7 @@ const PetalBanner: React.FC<PetalBannerProps> = ({ text, fontSize, isMobile }) =
   }, []);
 
   useEffect(() => {
-    const canvas    = canvasRef.current;
+    const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
     const resize = () => buildState(canvas, container.clientWidth, container.clientHeight);
@@ -236,41 +236,42 @@ const footerLinks = [
   {
     title: "Company",
     links: [
-      { id: 1, label: "About Us",   href: "/about"      },
+      { id: 1, label: "About Us", href: "/about" },
       { id: 2, label: "Contact Us", href: "/contact-us" },
-      { id: 3, label: "Shop",       href: "/shop"       },
-      { id: 4, label: "Blogs",      href: "/blog"       },
+      { id: 3, label: "Shop", href: "/shop" },
+      { id: 4, label: "Blogs", href: "/blog" },
+      { id: 5, label: "Brochures", href: "/brochure" },
     ],
   },
   {
     title: "Categories",
     links: [
-      { id: 4, label: "Face Care", href: "/shop?category=face-care"   },
+      { id: 4, label: "Face Care", href: "/shop?category=face-care" },
       { id: 5, label: "Body Care", href: "/shop?category=body-care" },
-      { id: 6, label: "Hair Care", href: "/shop?category=hair-care"        },
+      { id: 6, label: "Hair Care", href: "/shop?category=hair-care" },
     ],
   },
   {
     title: "Policies",
     links: [
-      { id: 7, label: "Returns Policy",     href: "/returns" },
-      { id: 8, label: "Terms & Conditions", href: "/terms"   },
-      { id: 9, label: "Privacy Policy",     href: "/privacy" },
+      { id: 7, label: "Returns Policy", href: "/returns" },
+      { id: 8, label: "Terms & Conditions", href: "/terms" },
+      { id: 9, label: "Privacy Policy", href: "/privacy" },
     ],
   },
 ];
 
 const contactItems = [
   { Icon: MapPin, text: "509, Peninsula Plaza, Veera Desai Industrial Estate, Opposite YRF, Andheri West, Mumbai – 400053", href: null },
-  { Icon: Phone,  text: "+(123) - 456 - 7890", href: null },
-  { Icon: Mail,   text: "info@mannequincare.in", href: "mailto:info@mannequincare.in" },
-  { Icon: Clock,  text: "All Day · 9:00 AM – 10:00 PM", href: null },
+  { Icon: Phone, text: "+(123) - 456 - 7890", href: null },
+  { Icon: Mail, text: "info@mannequincare.in", href: "mailto:info@mannequincare.in" },
+  { Icon: Clock, text: "All Day · 9:00 AM – 10:00 PM", href: null },
 ];
 
 const socials = [
   { label: "Facebook", href: "https://facebook.com", Icon: Facebook },
-  { label: "YouTube",  href: "https://youtube.com",  Icon: Youtube  },
-  { label: "X",        href: "https://twitter.com",  Icon: X        },
+  { label: "YouTube", href: "https://youtube.com", Icon: Youtube },
+  { label: "X", href: "https://twitter.com", Icon: X },
 ];
 
 /* ─── Component ─────────────────────────────────────────────────────── */
@@ -402,12 +403,12 @@ export default function Footer() {
           {/* Brand column */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* <Link href="/" className="inline-flex flex-col leading-none"> */}
-             <div className="inline-flex flex-col leading-none">
-                       <Link href="/" className="inline-flex min-w-[120px] " aria-label="Mannequin Care home">
-                         <Logo />
-                       </Link>
-                     </div>
-              
+            <div className="inline-flex flex-col leading-none">
+              <Link href="/" className="inline-flex min-w-[120px] " aria-label="Mannequin Care home">
+                <Logo />
+              </Link>
+            </div>
+
             {/* </Link>  */}
             <p style={{ fontSize: 14, lineHeight: 1.85, color: "rgba(255,255,255,0.6)", fontWeight: 300, maxWidth: 260 }}>
               True radiance begins with self-care — when you nurture your skin

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth-helpers";
 import { dbConnect } from "@/lib/db/connect";
-import { Order } from "@/lib/db/models/Order";
+import { Order, ORDER_STATUSES, PAYMENT_STATUSES } from "@/lib/db/models/Order";
 import { User } from "@/lib/db/models/User";
 import { sendOrderStatusUpdateEmail } from "@/lib/services/email";
 
@@ -18,6 +18,13 @@ export async function updateOrderStatus(formData: FormData) {
 
   if (!status || !paymentStatus) {
     throw new Error("Status and payment status are required");
+  }
+
+  if (!(ORDER_STATUSES as readonly string[]).includes(status)) {
+    throw new Error(`Invalid order status: ${status}`);
+  }
+  if (!(PAYMENT_STATUSES as readonly string[]).includes(paymentStatus)) {
+    throw new Error(`Invalid payment status: ${paymentStatus}`);
   }
 
   await requireStaff();

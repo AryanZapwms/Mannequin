@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { sendEmail } from "@/lib/services/email";
+import { dbConnect } from "@/lib/db/connect";
+import { ContactMessage } from "@/lib/db/models/ContactMessage";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import RevealWrapper from "@/components/RevealWrapper";
+import { ContactFormBody } from "@/components/contact-form-body";
 
 export const metadata: Metadata = {
   title: "Contact Us",
@@ -19,12 +23,30 @@ async function handleContactForm(formData: FormData) {
   const message = (formData.get("message") as string | null)?.trim() ?? "";
 
   if (!name || !email || !message) {
-    redirect("/contact-us?error=missing_fields");
+    redirect("/contact-us?error=missing_fields#contact-form");
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    redirect("/contact-us?error=invalid_email");
+    redirect("/contact-us?error=invalid_email#contact-form");
+  }
+
+  // Persist first so the enquiry is never lost if email delivery fails.
+  // A storage failure is logged but must not block the notification emails.
+  let savedId: string | null = null;
+  try {
+    await dbConnect();
+    const user = await getCurrentUser();
+    const saved = await ContactMessage.create({
+      name,
+      email,
+      subject,
+      message,
+      userId: user?.id ?? null,
+    });
+    savedId = saved._id.toString();
+  } catch (err) {
+    console.error("Contact form save error:", err);
   }
 
   try {
@@ -72,10 +94,14 @@ async function handleContactForm(formData: FormData) {
     });
   } catch (err) {
     console.error("Contact form email error:", err);
-    redirect("/contact-us?error=send_failed");
+    if (savedId) {
+      // Flag it in the admin inbox so someone follows up manually
+      await ContactMessage.findByIdAndUpdate(savedId, { emailDelivered: false }).catch(() => {});
+    }
+    redirect("/contact-us?error=send_failed#contact-form");
   }
 
-  redirect("/contact-us?success=true");
+  redirect("/contact-us?success=true#contact-form");
 }
 
 const contactDetails = [
@@ -195,7 +221,7 @@ export default async function ContactUsPage({
 
             {/* Form */}
             <RevealWrapper delay={120}>
-              <div className="rounded-card border border-brand-sand bg-white p-8 shadow-card">
+              <div id="contact-form" className="scroll-mt-24 rounded-card border border-brand-sand bg-white p-8 shadow-card">
                 <h2 className="mb-6 font-display text-heading font-semibold text-brand-espresso">
                   Send a Message
                 </h2>
@@ -225,69 +251,68 @@ export default async function ContactUsPage({
                   </div>
                 )}
 
-                <form action={handleContactForm} className="space-y-5">
-                  <div className="grid gap-5 sm:grid-cols-2">
+                <form
+                  action={handleContactForm}
+                  /* Remount after a successful send so the fields come back empty */
+                  key={success ? "sent" : "compose"}
+                >
+                  <ContactFormBody>
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <label htmlFor="name" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
+                          Full Name <span className="text-brand-copper">*</span>
+                        </label>
+                        <input
+                          id="name"
+                          name="name"
+                          type="text"
+                          required
+                          placeholder="Your name"
+                          className={inputClasses}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label htmlFor="email" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
+                          Email <span className="text-brand-copper">*</span>
+                        </label>
+                        <input
+                          id="email"
+                          name="email"
+                          type="email"
+                          required
+                          placeholder="your@email.com"
+                          className={inputClasses}
+                        />
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
-                      <label htmlFor="name" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
-                        Full Name <span className="text-brand-copper">*</span>
+                      <label htmlFor="subject" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
+                        Subject
                       </label>
-                      <input
-                        id="name"
-                        name="name"
-                        type="text"
+                      <select id="subject" name="subject" className={inputClasses}>
+                        <option value="Order Inquiry">Order Inquiry</option>
+                        <option value="Product Question">Product Question</option>
+                        <option value="Return / Refund">Return / Refund</option>
+                        <option value="Wholesale / Bulk Order">Wholesale / Bulk Order</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label htmlFor="message" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
+                        Message <span className="text-brand-copper">*</span>
+                      </label>
+                      <textarea
+                        id="message"
+                        name="message"
                         required
-                        placeholder="Your name"
-                        className={inputClasses}
+                        rows={5}
+                        placeholder="Tell us how we can help…"
+                        className={`${inputClasses} resize-none`}
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <label htmlFor="email" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
-                        Email <span className="text-brand-copper">*</span>
-                      </label>
-                      <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        required
-                        placeholder="your@email.com"
-                        className={inputClasses}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label htmlFor="subject" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
-                      Subject
-                    </label>
-                    <select id="subject" name="subject" className={inputClasses}>
-                      <option value="Order Inquiry">Order Inquiry</option>
-                      <option value="Product Question">Product Question</option>
-                      <option value="Return / Refund">Return / Refund</option>
-                      <option value="Wholesale / Bulk Order">Wholesale / Bulk Order</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label htmlFor="message" className="font-sub text-xs font-medium uppercase tracking-[0.1em] text-brand-mocha">
-                      Message <span className="text-brand-copper">*</span>
-                    </label>
-                    <textarea
-                      id="message"
-                      name="message"
-                      required
-                      rows={5}
-                      placeholder="Tell us how we can help…"
-                      className={`${inputClasses} resize-none`}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full rounded bg-brand-gold-500 px-6 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold"
-                  >
-                    Send Message
-                  </button>
+                  </ContactFormBody>
                 </form>
               </div>
             </RevealWrapper>

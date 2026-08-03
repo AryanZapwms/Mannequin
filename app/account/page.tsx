@@ -5,9 +5,9 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { dbConnect } from "@/lib/db/connect";
 import { User } from "@/lib/db/models/User";
-import { cn } from "@/lib/utils";
+import { AccountProfile } from "@/components/account-profile";
 import { AddressManager } from "@/components/address-manager";
-import { CalendarDays, ChevronRight, Mail, Package, Phone, User as UserIcon } from "lucide-react";
+import { ChevronRight, Package } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "My Account — Mannequin Care",
@@ -34,12 +34,6 @@ export default async function AccountPage() {
   const phone = user.phone;
   const createdAt = user.createdAt ? new Date(user.createdAt) : null;
   const metadata = (user.metadata ?? {}) as Record<string, unknown>;
-  const initials = fullName
-    .split(" ")
-    .map((segment: string) => segment[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     <div className="min-h-screen bg-brand-cream">
@@ -59,109 +53,15 @@ export default async function AccountPage() {
           </p>
         </header>
 
-        {/* ── Profile Card ──────────────────────────────────────── */}
-        <div className="rounded-card border border-brand-sand bg-white p-5 shadow-soft sm:p-7">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
-            {/* Avatar */}
-            <div
-              className={cn(
-                "flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-gold-100 font-display text-2xl font-semibold text-brand-copper ring-4 ring-brand-gold-50 sm:h-24 sm:w-24",
-                avatarUrl && "bg-transparent ring-brand-sand",
-              )}
-            >
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt={fullName}
-                  width={96}
-                  height={96}
-                  className="h-full w-full object-cover"
-                  unoptimized
-                />
-              ) : (
-                initials
-              )}
-            </div>
-
-            {/* Name & quick info */}
-            <div className="flex-1 space-y-1.5">
-              <h2 className="font-display text-xl font-semibold text-brand-espresso sm:text-2xl">
-                {fullName}
-              </h2>
-              <div className="flex items-center gap-2 font-body text-sm text-brand-body">
-                <Mail className="h-3.5 w-3.5 text-brand-mocha/50" strokeWidth={1.75} />
-                {user.email}
-              </div>
-              {phone && (
-                <div className="flex items-center gap-2 font-body text-sm text-brand-body">
-                  <Phone className="h-3.5 w-3.5 text-brand-mocha/50" strokeWidth={1.75} />
-                  {phone}
-                </div>
-              )}
-              {createdAt && (
-                <div className="flex items-center gap-2 font-sub text-xs text-brand-mocha">
-                  <CalendarDays className="h-3.5 w-3.5 text-brand-mocha/50" strokeWidth={1.75} />
-                  Member since {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(createdAt)}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Profile Details Card ──────────────────────────────── */}
-        <div className="rounded-card border border-brand-sand bg-white p-5 shadow-soft sm:p-7">
-          <h3 className="mb-5 flex items-center gap-2 font-display text-lg font-semibold text-brand-espresso sm:text-xl">
-            <UserIcon className="h-5 w-5 text-brand-copper" strokeWidth={1.75} />
-            Profile Details
-          </h3>
-
-          <dl className="grid gap-4 text-sm">
-            <div className="grid gap-1 rounded-thumb bg-brand-cream/60 p-3.5">
-              <dt className="font-sub text-[11px] font-medium uppercase tracking-[0.12em] text-brand-mocha">
-                User ID
-              </dt>
-              <dd className="break-all font-mono text-xs text-brand-body">
-                {user._id.toString()}
-              </dd>
-            </div>
-
-            <div className="grid gap-1 rounded-thumb bg-brand-cream/60 p-3.5">
-              <dt className="font-sub text-[11px] font-medium uppercase tracking-[0.12em] text-brand-mocha">
-                Email
-              </dt>
-              <dd className="font-body text-brand-espresso">{user.email}</dd>
-            </div>
-
-            {phone && (
-              <div className="grid gap-1 rounded-thumb bg-brand-cream/60 p-3.5">
-                <dt className="font-sub text-[11px] font-medium uppercase tracking-[0.12em] text-brand-mocha">
-                  Phone
-                </dt>
-                <dd className="font-body text-brand-espresso">{phone}</dd>
-              </div>
-            )}
-
-            {Object.keys(metadata).length > 0 && (
-              <div className="grid gap-2 rounded-thumb bg-brand-cream/60 p-3.5">
-                <dt className="font-sub text-[11px] font-medium uppercase tracking-[0.12em] text-brand-mocha">
-                  Additional Information
-                </dt>
-                <dd className="space-y-2">
-                  {Object.entries(metadata).map(([key, value]) => (
-                    <div key={key} className="flex items-start gap-3">
-                      <span className="w-28 shrink-0 font-sub text-xs font-medium capitalize text-brand-mocha">
-                        {key.replace(/_/g, " ")}
-                      </span>
-                      <span className="flex-1 break-words font-body text-sm text-brand-body">
-                        {typeof value === "string" ? value : JSON.stringify(value)}
-                      </span>
-                    </div>
-                  ))}
-                </dd>
-              </div>
-            )}
-          </dl>
-        </div>
+        <AccountProfile
+          userId={user._id.toString()}
+          email={user.email}
+          avatarUrl={avatarUrl}
+          displayName={user.displayName ?? null}
+          phone={phone ?? null}
+          createdAt={createdAt ? createdAt.toISOString() : null}
+          metadata={metadata}
+        />
 
         {/* ── My Orders Card ────────────────────────────────────── */}
         <div className="rounded-card border border-brand-sand bg-white p-5 shadow-soft sm:p-7">

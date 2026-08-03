@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { deleteProduct } from "./actions";
-import { Edit2, Plus, Trash2 } from "lucide-react";
+import { Edit2, EyeIcon, Plus, Trash2 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 import mongoose from "mongoose";
 import type { ProductDoc } from "@/lib/db/models/Product";
@@ -161,6 +161,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: any
                         <Link href={`/admin/products/${product.id}`} className="inline-flex">
                           <Button variant="outline" size="icon" aria-label={`Edit ${product.name}`}>
                             <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Link href={`/products/${product.slug}`} className="inline-flex">
+                          <Button variant="outline" size="icon" aria-label={`View ${product.name}`}>
+                            <EyeIcon className="h-4 w-4" />
                           </Button>
                         </Link>
                         <form action={destroyProduct}>

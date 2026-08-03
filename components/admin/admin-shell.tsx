@@ -16,6 +16,8 @@ import {
   X,
   MessageCircle,
   Layers,
+  Inbox,
+  Ticket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,8 +27,10 @@ const NAV_ITEMS = [
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/categories", label: "Categories", icon: Layers },
+  { href: "/admin/coupons", label: "Promo Codes", icon: Ticket },
   { href: "/admin/blogs", label: "Blogs", icon: BookOpen },
   { href: "/admin/reviews", label: "Reviews", icon: MessageCircle },
+  { href: "/admin/messages", label: "Messages", icon: Inbox },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];

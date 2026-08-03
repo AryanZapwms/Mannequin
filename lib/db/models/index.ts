@@ -9,3 +9,6 @@ export * from "./SiteSetting";
 export * from "./CartItem";
 export * from "./WishlistItem";
 export * from "./PasswordResetToken";
+export * from "./ContactMessage";
+export * from "./Coupon";
+export * from "./EmailVerification";

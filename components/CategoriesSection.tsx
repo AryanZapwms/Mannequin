@@ -14,7 +14,7 @@ const CATEGORIES = [
     label: "Face Care",
     title: "Face Care",
     count: 12,
-    href: "/category/eye-shadow",
+    href: "/shop?category=face-care",
     src: "/face-care.jpg",
   },
   {
@@ -22,7 +22,7 @@ const CATEGORIES = [
     label: "Body Care",
     title: "Body Care",
     count: 24,
-    href: "/category/face-cream",
+    href: "/shop?category=body-care",
     src: "/body-care.jpg",
     featured: true,
   },
@@ -31,7 +31,7 @@ const CATEGORIES = [
     label: "Hair Care",
     title: "Hair Care",
     count: 8,
-    href: "/category/skin-care",
+    href: "/shop?category=hair-care",
     src: "/hair-care.jpg",
   },
 ];
