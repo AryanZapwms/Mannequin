@@ -1,0 +1,62 @@
+name: Rollback
+
+# Manual, deliberate revert to a previously built image.
+# Actions → Rollback → Run workflow → paste the commit SHA (or "latest").
+#
+# Nothing is rebuilt: this redeploys an image already in GHCR, so it is fast and
+# cannot be blocked by a broken main. It uses the same blue/green script as a
+# normal deploy, so a rollback is also zero-downtime.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to deploy — full commit SHA, or "latest"'
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-production # shares the deploy lock so the two can't interleave
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Roll back to ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync deploy assets
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "docker-compose.yml,scripts/deploy.sh"
+          target: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Deploy the chosen tag over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY,,}"
+
+            # Verify the tag exists before touching anything that is serving
+            if ! docker manifest inspect "${IMAGE_REPO}:${{ inputs.tag }}" >/dev/null 2>&1; then
+              echo "::error::No image found for tag ${{ inputs.tag }}" >&2
+              exit 1
+            fi
+
+            chmod +x scripts/deploy.sh
+            IMAGE_REPO="$IMAGE_REPO" ./scripts/deploy.sh "${{ inputs.tag }}"

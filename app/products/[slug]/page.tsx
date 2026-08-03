@@ -211,9 +211,9 @@ export default async function ProductDetailPage({
 
   return (
     <div className="w-full bg-brand-cream">
-      <div className="mx-auto max-w-[1280px] px-6 py-10 lg:py-14">
+      <div className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6 sm:py-10 lg:py-14">
         {/* ── Breadcrumb ─────────────────────────────────────────── */}
-        <nav className="mb-8 flex flex-wrap items-center gap-1.5 font-sub text-[12px] font-medium tracking-[0.04em] text-brand-mocha">
+        <nav className="mb-6 flex flex-wrap items-center gap-1.5 font-sub text-[11px] font-medium tracking-[0.04em] text-brand-mocha sm:mb-8 sm:text-[12px]">
           <Link href="/" className="transition-colors hover:text-brand-copper">
             Home
           </Link>
@@ -232,17 +232,24 @@ export default async function ProductDetailPage({
               </Link>
             </>
           ) : null}
-          <ChevronRight className="h-3.5 w-3.5 text-brand-sand" />
-          <span className="text-brand-espresso">{product.name}</span>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-brand-sand" />
+          {/* Long names would otherwise push the trail onto three lines on a phone */}
+          <span className="max-w-[55vw] truncate text-brand-espresso sm:max-w-none">
+            {product.name}
+          </span>
         </nav>
 
         {/* ── Product overview ───────────────────────────────────── */}
-        <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
-          <RevealWrapper className="lg:sticky lg:top-24 lg:self-start">
+        <div className="grid gap-8 sm:gap-10 lg:grid-cols-2 lg:gap-14">
+          {/* min-w-0: grid items default to min-width:auto, so they refuse to
+              shrink below their content's min-content width — which pushed this
+              column to 656px inside a 358px grid and gave the whole page a
+              horizontal scrollbar on phones. */}
+          <RevealWrapper className="min-w-0 lg:sticky lg:top-24 lg:self-start">
             <ProductGallery images={allImages} discount={discount} />
           </RevealWrapper>
 
-          <RevealWrapper delay={120} className="space-y-7">
+          <RevealWrapper delay={120} className="min-w-0 space-y-7">
             <div>
               {product.sub_category ? (
                 <p className="mb-3 font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
@@ -274,8 +281,10 @@ export default async function ProductDetailPage({
               </span>
             </div>
 
-            <div className="flex items-baseline gap-3">
-              <span className="font-mono text-4xl text-brand-copper">₹{product.price.toFixed(2)}</span>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+              <span className="font-mono text-3xl text-brand-copper sm:text-4xl">
+                ₹{product.price.toFixed(2)}
+              </span>
               {product.compare_at_price && product.compare_at_price > product.price ? (
                 <span className="font-mono text-xl text-brand-mocha/60 line-through">
                   ₹{product.compare_at_price.toFixed(2)}
@@ -341,8 +350,9 @@ export default async function ProductDetailPage({
         </div>
                  
         {/* ── Reviews ────────────────────────────────────────────── */}
-        <div className="mt-20 grid gap-10 lg:grid-cols-[2fr,1fr]">
-          <section>
+        {/* Underscore, not a comma: Tailwind arbitrary values can't contain commas */}
+        <div className="mt-14 grid gap-8 sm:mt-20 lg:grid-cols-[2fr_1fr] lg:gap-10">
+          <section className="min-w-0">
             <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
               What people say
             </p>
@@ -358,7 +368,7 @@ export default async function ProductDetailPage({
                 {reviews.map((review) => (
                   <article
                     key={review.id}
-                    className="rounded-card border border-brand-sand bg-white p-6 shadow-soft"
+                    className="rounded-card border border-brand-sand bg-white p-5 shadow-soft sm:p-6"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -402,7 +412,7 @@ export default async function ProductDetailPage({
             )}
           </section>
 
-          <aside className="h-fit rounded-card border border-brand-sand bg-white p-6 shadow-soft lg:sticky lg:top-24">
+          <aside className="h-fit min-w-0 rounded-card border border-brand-sand bg-white p-5 shadow-soft sm:p-6 lg:sticky lg:top-24">
             <h3 className="font-display text-2xl font-semibold text-brand-espresso">
               {authUser ? (userReview ? "Update your review" : "Write a review") : "Sign in to review"}
             </h3>
@@ -474,7 +484,7 @@ export default async function ProductDetailPage({
 
         {/* ── Related products ───────────────────────────────────── */}
         {relatedProducts.length > 0 ? (
-          <div className="mt-20">
+          <div className="mt-14 sm:mt-20">
             <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
               You may also like
             </p>
@@ -492,7 +502,7 @@ export default async function ProductDetailPage({
         ) : null}
 
         {/* ── Suggested products ─────────────────────────────────── */}
-        <div className="mt-20">
+        <div className="mt-14 sm:mt-20">
           <p className="font-sub text-[11px] font-medium uppercase tracking-[0.2em] text-brand-copper">
             Picked for you
           </p>

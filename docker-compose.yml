@@ -1,19 +1,35 @@
-# Lives on the VPS at $DEPLOY_PATH. The deploy workflow only runs
-# `docker compose pull web && docker compose up -d --no-deps web`,
-# so this file is edited on the server, not by CI.
+# Blue/green pair. Exactly one colour serves traffic at a time; the other is
+# either stopped or warming up. Nginx decides which, via the generated
+# upstream file (see nginx/upstream.conf) — see scripts/deploy.sh.
+#
+# Both colours are behind compose profiles so `docker compose up` never starts
+# both by accident. The deploy script always targets one explicitly.
+x-web: &web
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    NODE_ENV: production
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
-  web:
-    image: ghcr.io/varun240909/mannequincare.in:latest
-    restart: unless-stopped
-    # Bind to localhost only — Nginx terminates TLS and proxies to this port.
+  blue:
+    <<: *web
+    # APP_TAG is set by scripts/deploy.sh to the commit SHA being deployed.
+    image: ghcr.io/varun240909/mannequincare.in:${APP_TAG:-latest}
+    profiles: [blue]
+    container_name: mannequincare-blue
     ports:
-      - "127.0.0.1:3000:3000"
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: production
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - "127.0.0.1:3001:3000"
+
+  green:
+    <<: *web
+    image: ghcr.io/varun240909/mannequincare.in:${APP_TAG:-latest}
+    profiles: [green]
+    container_name: mannequincare-green
+    ports:
+      - "127.0.0.1:3002:3000"

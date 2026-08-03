@@ -395,16 +395,26 @@ export default function Header() {
         )}
       />
 
-      {/* Mobile menu panel — full-screen slide-in from the right */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-hidden={!mobileMenuOpen}
-        className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-brand-cream px-6 py-6 shadow-hover transition-transform duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)] lg:hidden",
-          mobileMenuOpen ? "translate-x-0" : "translate-x-full",
-        )}
-      >
+      {/*
+        Mobile menu panel — full-screen slide-in from the right.
+
+        The wrapper is not decoration: a closed panel sits at translate-x-full,
+        i.e. a full viewport width to the right of the screen. Transforms count
+        toward the document's scrollable overflow, so without something to clip
+        it every mobile page gains a horizontal scrollbar and roughly 2x page
+        width. `overflow-hidden` here contains it while keeping the slide
+        animation intact.
+      */}
+      <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden lg:hidden">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-hidden={!mobileMenuOpen}
+          className={cn(
+            "absolute inset-y-0 right-0 flex w-full flex-col bg-brand-cream px-6 py-6 shadow-hover transition-transform duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
+            mobileMenuOpen ? "pointer-events-auto translate-x-0" : "pointer-events-none translate-x-full",
+          )}
+        >
         <div className="flex items-center justify-between">
           <Link href="/" className="inline-flex items-center" onClick={closeMobileMenu}>
             <Logo className="h-8" />
@@ -463,19 +473,20 @@ export default function Header() {
           </Link>
         </div>
 
-        <div className="mt-auto pt-10">
-          {user ? (
-            <button
-              type="button"
-              onClick={async () => {
-                await signOut({ callbackUrl: "/" });
-                closeMobileMenu();
-              }}
-              className="flex items-center gap-2 font-sub text-sm font-medium uppercase tracking-[0.1em] text-brand-mocha transition-colors hover:text-brand-copper"
-            >
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          ) : null}
+          <div className="mt-auto pt-10">
+            {user ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut({ callbackUrl: "/" });
+                  closeMobileMenu();
+                }}
+                className="flex items-center gap-2 font-sub text-sm font-medium uppercase tracking-[0.1em] text-brand-mocha transition-colors hover:text-brand-copper"
+              >
+                <LogOut className="h-4 w-4" /> Sign out
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
     </header>

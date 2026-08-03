@@ -40,7 +40,7 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
           alt={active.alt}
           fill
           sizes="(max-width: 768px) 100vw, 50vw"
-          className="object-contain p-6 transition-transform duration-500 group-hover:scale-105"
+          className="object-contain p-4 transition-transform duration-500 group-hover:scale-105 sm:p-6"
           priority
         />
         {discount > 0 && (
@@ -54,7 +54,7 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
               type="button"
               aria-label="Previous image"
               onClick={prev}
-              className="absolute left-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-brand-sand bg-white/90 opacity-0 shadow-soft backdrop-blur-sm transition-all hover:bg-white group-hover:opacity-100"
+              className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-brand-sand bg-white/90 shadow-soft backdrop-blur-sm transition-all hover:bg-white sm:left-3 md:opacity-0 md:group-hover:opacity-100"
             >
               <ChevronLeft className="h-5 w-5 text-brand-espresso" />
             </button>
@@ -62,7 +62,7 @@ export function ProductGallery({ images, discount = 0 }: ProductGalleryProps) {
               type="button"
               aria-label="Next image"
               onClick={next}
-              className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-brand-sand bg-white/90 opacity-0 shadow-soft backdrop-blur-sm transition-all hover:bg-white group-hover:opacity-100"
+              className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-brand-sand bg-white/90 shadow-soft backdrop-blur-sm transition-all hover:bg-white sm:right-3 md:opacity-0 md:group-hover:opacity-100"
             >
               <ChevronRight className="h-5 w-5 text-brand-espresso" />
             </button>

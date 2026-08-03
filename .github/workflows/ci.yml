@@ -1,8 +1,10 @@
 name: CI
 
+# No `push: branches: [main]` trigger on purpose — deploy.yml calls this
+# workflow as its gate, so adding one here would run every check twice.
 on:
   push:
-    branches: [main]
+    branches-ignore: [main]
   pull_request:
   workflow_call: # lets deploy.yml reuse this as a gate
 

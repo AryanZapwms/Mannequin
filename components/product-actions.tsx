@@ -126,9 +126,9 @@ export function ProductActions({
 
   return (
     <div className="space-y-4 border-t border-brand-sand pt-6">
-      {/* Quantity + Add to Cart */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center rounded border border-brand-sand bg-white">
+      {/* Quantity + Add to Cart — stacked on phones, side by side from sm up */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex w-fit items-center rounded border border-brand-sand bg-white">
           <button
             type="button"
             aria-label="Decrease quantity"
@@ -156,7 +156,7 @@ export function ProductActions({
           type="button"
           onClick={handleAddToCart}
           disabled={isOutOfStock || isPendingCart}
-          className="flex flex-1 items-center justify-center gap-2 rounded bg-brand-gold-500 px-6 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold disabled:cursor-not-allowed disabled:border disabled:border-brand-sand disabled:bg-white disabled:text-brand-mocha disabled:hover:translate-y-0 disabled:hover:shadow-none"
+          className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded bg-brand-gold-500 px-4 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.08em] text-brand-espresso transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-gold-600 hover:shadow-gold disabled:cursor-not-allowed disabled:border disabled:border-brand-sand disabled:bg-white disabled:text-brand-mocha disabled:hover:translate-y-0 disabled:hover:shadow-none sm:w-auto sm:flex-1 sm:px-6"
         >
           <ShoppingCart className="h-5 w-5" />
           {isPendingCart ? "Adding…" : isOutOfStock ? "Out of Stock" : "Add to Cart"}
@@ -169,7 +169,7 @@ export function ProductActions({
           type="button"
           onClick={handleWishlist}
           disabled={isPendingWishlist}
-          className={`flex flex-1 items-center justify-center gap-2 rounded border px-6 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
+          className={`flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded border px-4 py-3.5 font-sub text-sm font-semibold uppercase tracking-[0.06em] transition-all duration-200 sm:px-6 ${
             inWishlist
               ? "border-brand-blush bg-brand-blush/20 text-brand-copper hover:bg-brand-blush/30"
               : "border-brand-sand text-brand-espresso hover:bg-white hover:shadow-soft"
@@ -187,7 +187,7 @@ export function ProductActions({
           type="button"
           aria-label="Share product"
           onClick={handleShare}
-          className="flex items-center justify-center gap-2 rounded border border-brand-sand px-5 py-3.5 text-brand-espresso transition-all duration-200 hover:bg-white hover:shadow-soft"
+          className="flex shrink-0 items-center justify-center gap-2 rounded border border-brand-sand px-4 py-3.5 text-brand-espresso transition-all duration-200 hover:bg-white hover:shadow-soft sm:px-5"
         >
           <Share2 className="h-5 w-5" />
         </button>
