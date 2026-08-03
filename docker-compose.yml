@@ -1,0 +1,19 @@
+# Lives on the VPS at $DEPLOY_PATH. The deploy workflow only runs
+# `docker compose pull web && docker compose up -d --no-deps web`,
+# so this file is edited on the server, not by CI.
+services:
+  web:
+    image: ghcr.io/varun240909/mannequincare.in:latest
+    restart: unless-stopped
+    # Bind to localhost only — Nginx terminates TLS and proxies to this port.
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

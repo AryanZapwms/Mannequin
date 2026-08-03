@@ -17,19 +17,19 @@ const globalForMongoose = globalThis as typeof globalThis & {
   };
 };
 
-const uri: string = (() => {
-  if (!process.env.MONGODB_URI) {
-    throw new Error("MONGODB_URI must be set");
-  }
-  return process.env.MONGODB_URI;
-})();
-
 const cached = globalForMongoose._mongoose ?? { conn: null, promise: null };
 globalForMongoose._mongoose = cached;
 
 export async function dbConnect() {
   if (cached.conn) {
     return cached.conn;
+  }
+
+  // Checked at call time, not module load: `next build` imports this file while
+  // collecting route data, and CI builds have no database credentials.
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error("MONGODB_URI must be set");
   }
 
   if (!cached.promise) {
